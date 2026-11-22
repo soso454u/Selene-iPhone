@@ -12,6 +12,16 @@ const boundStyle = card => {
     return payload?.format === 'tavern-pocket-style' && payload.version === 1 && payload.settings && typeof payload.settings === 'object' ? styleValues(payload.settings) : null;
 };
 
+const record = value => value && typeof value === 'object' && !Array.isArray(value);
+
+function cardJson(text) {
+    if (typeof text !== 'string') return null;
+    try {
+        const card = JSON.parse(text);
+        return record(card) ? card : null;
+    } catch { return null; }
+}
+
 class CardStyles {
     constructor(ledger, account) { Object.assign(this, { ledger, account, cache: new Map() }); }
     key(card) { return `card-style:${this.account}:${card.avatar}`; }
@@ -46,25 +56,58 @@ class CardStyles {
         if (JSON.stringify(result).length > 10 * 1024 * 1024) throw new Error('角色外观配置超过 10 MiB，请减少背景图片体积。');
         return { format: 'tavern-pocket-style', version: 1, settings: result };
     }
-    async bind(resources, card, values) {
-        const payload = await this.portable(values);
+    async bind(resources, card, values, getContext = () => resources.context) {
+        if (this.binding) throw new Error('角色绑定正在保存，请稍候。');
         const target = card.avatar;
-        const valid = () => !resources.context.groupId && resources.context.characters?.[resources.context.characterId]?.avatar === target;
-        if (!valid()) throw new Error('请打开要绑定的单个角色卡。');
-        const before = await resources.request('characters/get', { avatar_url: target });
-        if (!before?.data || !valid()) throw new Error('角色已变化或服务器角色数据不可读，未保存。');
-        await resources.request('characters/merge-attributes', { avatar: target, data: { extensions: { [STYLE_FIELD]: payload } } });
-        const saved = await resources.request('characters/get', { avatar_url: target });
-        if (fingerprint(saved?.data?.extensions?.[STYLE_FIELD]) !== fingerprint(payload)) throw new Error('绑定内容回读不一致，请重新检查；未报告绑定成功。');
-        card.data ??= {}; card.data.extensions ??= {}; card.data.extensions[STYLE_FIELD] = payload;
-        if (card.json_data) {
-            const json = JSON.parse(card.json_data); json.data ??= {}; json.data.extensions ??= {}; json.data.extensions[STYLE_FIELD] = payload;
-            card.json_data = JSON.stringify(json);
+        const currentCard = () => {
+            const context = getContext();
+            return !context?.groupId ? context?.characters?.[context.characterId] : null;
+        };
+        const assertTarget = () => {
+            if (!target || currentCard()?.avatar !== target) throw new Error('当前角色已切换，请重新打开要绑定的单个角色聊天。');
+        };
+        let exportCard = false;
+        const read = async () => {
+            if (exportCard) return resources.request('characters/export', { avatar_url: target, format: 'json' });
+            let result;
+            try { result = await resources.request('characters/get', { avatar_url: target }); }
+            catch (error) { if (error.code !== 'TAVERN_ROUTE') throw error; }
+            if (result?.avatar && result.avatar !== target) throw new Error('酒馆返回了不同的角色卡，请刷新页面后重试。');
+            if (record(result?.data)) return result;
+            const raw = cardJson(result?.json_data);
+            if (record(raw?.data)) return raw;
+            exportCard = true;
+            return resources.request('characters/export', { avatar_url: target, format: 'json' });
+        };
+        this.binding = true;
+        try {
+            assertTarget();
+            const payload = await this.portable(values);
+            const before = await read();
+            if (!record(before?.data)) throw new Error('酒馆未返回当前角色卡数据，无法保存绑定。');
+            assertTarget();
+            await resources.request('characters/merge-attributes', { avatar: target, data: { extensions: { [STYLE_FIELD]: payload } } });
+            const saved = await read();
+            if (fingerprint(saved?.data?.extensions?.[STYLE_FIELD] ?? null) !== fingerprint(payload)) throw new Error('绑定内容回读不一致，请重新检查角色卡。');
+            const active = currentCard();
+            const updated = active?.avatar === target ? active : card;
+            if (!record(updated.data)) updated.data = {};
+            if (!record(updated.data.extensions)) updated.data.extensions = {};
+            updated.data.extensions[STYLE_FIELD] = payload;
+            const json = cardJson(updated.json_data) || cardJson(saved.json_data) || (updated.json_data ? { ...saved, json_data: undefined } : null);
+            if (json) {
+                if (!record(json.data)) json.data = {};
+                if (!record(json.data.extensions)) json.data.extensions = {};
+                json.data.extensions[STYLE_FIELD] = payload;
+                updated.json_data = JSON.stringify(json);
+            }
+            const editor = resources.host.document.querySelector?.('#character_json_data');
+            if (editor && active === updated) editor.value = updated.json_data || JSON.stringify(updated);
+            await this.saveLocal(updated, payload.settings);
+            return payload;
+        } finally {
+            this.binding = false;
         }
-        const editor = resources.host.document.querySelector?.('#character_json_data');
-        if (editor && valid()) editor.value = card.json_data || JSON.stringify(card);
-        await this.saveLocal(card, payload.settings);
-        return payload;
     }
 }
 module.exports = { CardStyles, STYLE_FIELD, STYLE_KEYS, styleValues, boundStyle };

@@ -2527,7 +2527,6 @@ class Phone {
                 return this.el('details', 'platform-prompt', this.el('summary', '', `${name}${settings.platformPrompts?.[id] ? ' · 自定义' : ''}`),
                     this.el('div', 'form', input, this.button(`恢复${name}默认文本`, () => { input.value = PLATFORM_RULES[name].text; input.dispatchEvent(new this.host.Event('change', { bubbles: true })); }, 'link')));
             }));
-        const store = () => this.action('settings', { ...values(), ...promptValues(), platformApis: Object.fromEntries(Object.entries(platformFields).map(([key, select]) => [key, select.value])) });
         form.onsubmit = event => event.preventDefault();
         const modelField = field('model', '自定义模型');
         const profiles = this.select([['', '选择已保存的 API 方案'], ...(settings.apiProfiles || []).map(profile => [profile.id, profile.name])], settings.activeApiProfile || '');
@@ -2542,7 +2541,7 @@ class Phone {
         const modelPicker = state?.models?.length ? this.select([['', '从服务端列表选择模型'], ...state.models.map(id => [id, id])], state.models.includes(settings.model) ? settings.model : '') : null;
         if (modelPicker) { modelPicker.setAttribute('aria-label', '服务端模型列表'); modelPicker.onchange = () => { if (modelPicker.value) { fields.model.value = modelPicker.value; fields.model.dispatchEvent(new this.host.Event('change', { bubbles: true })); } }; }
         form.append(this.heading('设置', 'PREFERENCES'), this.settingsGroup('连接与模型', '生成通路、API 和模型参数', 'wifi', field('apiMode', '生成通路', 'choice', [['tavern', '酒馆当前连接'], ['custom', '独立 OpenAI 兼容 API']]),
-            field('base', '独立 Base URL'), field('secret', '独立 API 密钥（持久保存）', 'password'), modelPicker, this.el('div', 'settings-model-row', modelField, this.button('拉取模型', async () => { await this.flushAutosaves(); this.action('models'); }, 'outline')), profileControls,
+            field('base', '独立 Base URL'), field('secret', '独立 API 密钥（持久保存）', 'password'), modelPicker, this.el('div', 'settings-model-row', modelField, this.button('拉取模型', async () => { if ((await this.flushAutosaves()).every(Boolean)) await this.action('models'); }, 'outline')), profileControls,
             field('streaming', '独立 API 流式接收', 'checkbox'), this.small('逐步接收以减轻网关等待；完整结构化回复接收成功后才显示和写入账本。连接测试成功只代表短请求可用。'),
             field('temperature', '独立温度', 'number'), field('output', '手机最大输出 Token（0＝不额外限制）', 'number'), this.small('默认不发送输出上限，由服务商决定。可填写任意有效正整数；要求明确上限的原生服务沿用当前连接设置。'), this.el('div', 'actions', this.button('测试连接', async () => { await this.flushAutosaves(); this.action('test'); }, 'outline'), this.button('清除当前密钥', () => this.action('settings', { secret: '' }), 'link')),
             this.small('连接测试会发一个不含剧情的短请求。模型列表不请求生成。密钥保存在当前酒馆账号的浏览器存储中，刷新或更新脚本后保留；不进入剧情、聊天备份或提示词。')),
@@ -2574,7 +2573,7 @@ class Phone {
                 field('rpTimeAuto', '从正文自动读取 RP 时间', 'checkbox'), this.small(`当前剧情时间：${state?.rpTime || '尚未识别'}。读取正文的明确时间，不按设备时间推算；关闭自动读取可手动指定。`), field('rpTime', '手动 RP 时间（未识别时使用，可留空）')),
             this.settingsGroup('角色绑定与分享', state?.cardBound ? `已绑定 ${state.cardName}` : '让背景、表情包和手机预设随角色卡分享', 'contacts',
                 this.small('绑定后，外观修改按当前角色单独保存。修改后需再次更新绑定，才会写入角色卡；导出角色卡和本脚本即可分享。API 密钥、个人头像和聊天记录不会写入角色卡。'),
-                this.button(state?.cardBound ? '更新当前角色绑定' : '绑定当前角色', () => this.dialog(`绑定到 ${state?.cardName || '当前角色'}？`, this.small('保存当前背景、表情包及手机预设到角色卡。上传的背景会一并嵌入，不依赖本机文件路径。'), async () => { if (await store()) this.action('bindCharacter'); }), 'outline'),
+                this.button(state?.cardBound ? '更新当前角色绑定' : '绑定当前角色', () => this.dialog(`绑定到 ${state?.cardName || '当前角色'}？`, this.small('保存当前背景、表情包及手机预设到角色卡。上传的背景会一并嵌入，不依赖本机文件路径。'), async () => { if ((await this.flushAutosaves()).every(Boolean)) await this.action('bindCharacter', { avatar: state?.cardAvatar }); }), 'outline'),
                 this.button('恢复默认脚本', () => this.dialog('恢复默认脚本？', this.small('恢复默认外观、表情包和手机预设；若当前角色已绑定，同时更新其默认模板。保留 API 连接及密钥、聊天账本、原版正则和世界书。'), () => this.action('resetPhoneDefaults')), 'outline')),
             this.settingsGroup('本地账本', '导出聊天或恢复备份', 'debug', this.small('导出当前酒馆聊天下的全部手机聊天、各平台、相册、设置和提示词；不包含 API 连接与密钥。云端同步使用相同范围。'), this.el('div', 'actions', this.button('导出当前聊天', () => this.action('backup'), 'outline'), this.button('恢复备份', () => {
                 const file = this.input('file', ''); file.accept = '.json,application/json';

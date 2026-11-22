@@ -2,7 +2,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { parseReply, filterPlayerComments } = require('../src/api.cjs');
 const { phonePrompt, DEFAULT_PRESET, PLATFORM_RULES, postCounts, SOCIAL_COMMON_PROMPT, cleanPlatformPrompts, SOCIAL_TIME_RULE, LEGACY_SOCIAL_DEFAULTS } = require('../src/phone-preset.cjs');
-const { CardStyles, STYLE_FIELD, styleValues } = require('../src/card-style.cjs');
+const { CardStyles, STYLE_FIELD, styleValues, boundStyle } = require('../src/card-style.cjs');
+const { Resources } = require('../src/resources.cjs');
 const { ImageService } = require('../src/image-service.cjs');
 const { Photos } = require('../src/photos.cjs');
 const { PLAYER } = require('../src/domain.cjs');
@@ -160,6 +161,42 @@ test('card binding embeds local backgrounds and round-trips only portable stylin
     assert.equal(reload.values(card).theme, 'dark');
     assert.equal(reload.values({ avatar: 'b.png', data: {} }), null);
     await reload.saveLocal(card, styleValues()); assert.equal(reload.values(card).theme, 'auto');
+});
+
+test('card binding reads through JSON export when the get route returns HTML and stops if the character switches', async () => {
+    const stored = { name: '角色甲', data: { extensions: { unrelated: 'keep' } } };
+    const card = { ...structuredClone(stored), avatar: 'a.png', json_data: '<!DOCTYPE html>' };
+    const context = { characters: [card, { avatar: 'b.png' }], characterId: 0, getRequestHeaders: () => ({}) };
+    const calls = [];
+    let switchOnRead = false;
+    const resources = new Resources({
+        location: { href: 'https://tavern.test/chat' }, document: { baseURI: 'https://static.test/phone/' },
+        fetch: async (url, options) => {
+            assert.equal(url.origin, 'https://tavern.test');
+            const route = url.pathname.split('/').at(-1);
+            calls.push(route);
+            const body = JSON.parse(options.body);
+            assert.equal(body.avatar_url ?? body.avatar, card.avatar);
+            if (route === 'get') return new Response('<!DOCTYPE html><title>Unavailable</title>');
+            if (route === 'export') {
+                assert.equal(body.format, 'json');
+                if (switchOnRead) context.characterId = 1;
+                return Response.json(stored);
+            }
+            Object.assign(stored.data.extensions, body.data.extensions);
+            return new Response('OK');
+        },
+    }, {}, context);
+    const styles = new CardStyles(ledger(), 'account');
+    await styles.bind(resources, card, { theme: 'dark' });
+    assert.deepEqual(calls, ['get', 'export', 'merge-attributes', 'export']);
+    assert.equal(boundStyle(card).theme, 'dark');
+    assert.equal(boundStyle(JSON.parse(card.json_data)).theme, 'dark');
+    assert.equal(stored.data.extensions.unrelated, 'keep');
+    switchOnRead = true;
+    await assert.rejects(styles.bind(resources, card, { theme: 'light' }), /当前角色已切换/);
+    assert.deepEqual(calls.slice(4), ['get', 'export']);
+    assert.equal(boundStyle(stored).theme, 'dark');
 });
 
 test('native generation uses one registered quiet command, deduplicates tasks and reads no saved keys', async () => {

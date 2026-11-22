@@ -1,6 +1,7 @@
 const { digest } = require('./domain.cjs');
 const { fingerprint } = require('./resources.cjs');
 const { backupState, stateHashes, mergeBackupData } = require('./portable.cjs');
+const { tavernApiUrl, isHtmlResponse } = require('./host.cjs');
 
 const FIELD = 'tavern_pocket_v1';
 function mergeEvents(local, remote) {
@@ -56,11 +57,14 @@ class Cloud {
         const context = session.context;
         if (context.groupId) throw new Error('群聊云端元数据保存尚未适配；可使用本地账本导出恢复。');
         const file = String(context.getCurrentChatId()).replace(/\.jsonl$/, '');
-        const response = await this.host.fetch(new URL(context.groupId ? 'api/chats/group/get' : 'api/chats/get', this.host.document.baseURI), {
-            method: 'POST', headers: context.getRequestHeaders(), body: JSON.stringify(context.groupId ? { id: file } : { avatar_url: context.characters[context.characterId].avatar, file_name: file }),
+        const response = await this.host.fetch(tavernApiUrl(this.host, 'chats/get'), {
+            method: 'POST', mode: 'same-origin', headers: context.getRequestHeaders(), body: JSON.stringify({ avatar_url: context.characters[context.characterId].avatar, file_name: file }),
         });
         if (!response.ok) throw new Error(`云端回读失败 HTTP ${response.status}`);
-        const rows = await response.json();
+        const text = await response.text();
+        let rows;
+        try { rows = JSON.parse(text.trim()); }
+        catch { throw new Error(isHtmlResponse(response, text) ? '酒馆聊天接口返回了网页，请刷新酒馆页面后重试。' : '酒馆聊天接口返回的数据无法读取。'); }
         if (!Array.isArray(rows)) throw new Error('服务器尚无可验证的聊天文件，请先在酒馆保存一次聊天。');
         const story = values => fingerprint(values.map(row => [row.name, row.is_user, row.mes, row.swipe_id ?? 0]));
         this.storyMatches = story(rows.slice(1)) === story(session.chat);

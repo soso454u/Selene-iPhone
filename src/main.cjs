@@ -96,7 +96,10 @@ function start(frame) {
                     await cloud.sync(fresh); phone.updateCloudStatus(cloud.status);
                     if (phone.view !== 'settings' && !phone.pop && !phone.textInput(phone.shadow.activeElement)) await refresh();
                 }
-            } catch (error) { fail(error); }
+            } catch (error) {
+                cloud.status = `自动云端保存失败：${error.message}`;
+                phone.updateCloudStatus(cloud.status);
+            }
         }, 1800);
     }
 
@@ -195,7 +198,7 @@ function start(frame) {
         if (!valid()) return null;
         const card = st.characters?.[st.characterId];
         const cardScoped = !st.groupId && styles.scoped(card);
-        return { ...state, cardScoped, cardBound: !st.groupId && !!boundStyle(card), cardName: card?.name || '', trail, people, groups: groups || [], prefs: cardScoped ? { ...prefs, chatBackgrounds: {} } : prefs || {}, manual: manual || [], parser, valid, scanFailed: scan?.failed };
+        return { ...state, cardScoped, cardBound: !st.groupId && !!boundStyle(card), cardAvatar: !st.groupId ? card?.avatar : undefined, cardName: card?.name || '', trail, people, groups: groups || [], prefs: cardScoped ? { ...prefs, chatBackgrounds: {} } : prefs || {}, manual: manual || [], parser, valid, scanFailed: scan?.failed };
     }
 
     function resolveThreads(session, rows) {
@@ -508,16 +511,21 @@ function start(frame) {
             const st = getContext();
             const card = st.characters?.[st.characterId];
             if (name === 'bindCharacter' && (!session?.valid() || st.groupId || !card?.avatar)) throw new Error('请先打开要绑定的单个角色聊天。');
+            if (name === 'bindCharacter' && data.avatar !== card.avatar) throw new Error('当前角色已切换，请重新确认要绑定的角色。');
             resources.context = st;
             if (name === 'bindCharacter') {
                 const values = styleValues(settings);
                 const ownThread = threadKey([PLAYER, `card:${card.avatar}`]);
                 const ownBackground = session.prefs.chatBackgrounds?.[ownThread];
                 if (ownBackground) values.pageBackgrounds = { ...values.pageBackgrounds, chat: ownBackground };
-                await styles.bind(resources, card, values);
+                await styles.bind(resources, card, values, getContext);
             } else if (card?.avatar && !st.groupId) {
-                if (boundStyle(card)) await styles.bind(resources, card, { ...styleValues(), wallpaperLibrary: settings.wallpaperLibrary });
+                if (boundStyle(card)) await styles.bind(resources, card, { ...styleValues(), wallpaperLibrary: settings.wallpaperLibrary }, getContext);
                 else await styles.saveLocal(card, { ...styleValues(), wallpaperLibrary: settings.wallpaperLibrary });
+            }
+            if (name === 'bindCharacter' && getState()?.scope !== session.scope) {
+                setNotice(`已保存 ${card.name || '原角色'} 的绑定。`);
+                return refresh();
             }
             accountSettings = phoneSettings({ ...accountSettings, ...styleValues(), wallpaperLibrary: accountSettings.wallpaperLibrary, ...(name === 'resetPhoneDefaults' ? { showLauncher: true, musicIsland: true, launcherPosition: null, userAvatar: '' } : {}) });
             st.accountStorage.setItem(`${KEY}:settings`, JSON.stringify(accountSettings));

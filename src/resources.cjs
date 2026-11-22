@@ -1,6 +1,6 @@
 const { digest } = require('./domain.cjs');
 const { worldbook, regexes, socialRegexes } = require('./bundled.cjs');
-const { loadModule } = require('./host.cjs');
+const { loadModule, tavernApiUrl, isHtmlResponse } = require('./host.cjs');
 
 const fingerprint = value => {
     const sort = item => Array.isArray(item) ? item.map(sort) : item && typeof item === 'object' ? Object.fromEntries(Object.keys(item).sort().map(key => [key, sort(item[key])])) : item;
@@ -46,10 +46,15 @@ function planResources(current, originals, records, mode, regex = false) {
 class Resources {
     constructor(host, helper, context, loadNative = path => loadModule(host, path)) { Object.assign(this, { host, helper, context, loadNative }); }
     async request(path, body) {
-        const response = await this.host.fetch(new URL(`api/${path}`, this.host.document.baseURI), { method: 'POST', headers: this.context.getRequestHeaders(), body: JSON.stringify(body) });
-        if (!response.ok) throw new Error(`联动资源保存失败 HTTP ${response.status}；未标记成功。`);
+        const response = await this.host.fetch(tavernApiUrl(this.host, path), { method: 'POST', mode: 'same-origin', headers: this.context.getRequestHeaders(), body: JSON.stringify(body) });
         const text = await response.text();
-        try { return JSON.parse(text); } catch { return null; }
+        if ((response.ok && isHtmlResponse(response, text)) || [404, 405].includes(response.status)) {
+            const error = new Error(`酒馆接口 ${path} 返回了网页或不可用（HTTP ${response.status}）。请刷新酒馆页面后重试。`);
+            error.code = 'TAVERN_ROUTE';
+            throw error;
+        }
+        if (!response.ok) throw new Error(`酒馆接口 ${path} 请求失败（HTTP ${response.status}）。`);
+        try { return JSON.parse(text.trim()); } catch { return null; }
     }
     async inspect(book) {
         const card = this.context.characters?.[this.context.characterId];

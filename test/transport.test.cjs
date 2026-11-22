@@ -59,6 +59,31 @@ test('model lists accept provider and proxy envelopes but never treat upstream e
     assert.throws(() => modelList({ choices: [] }), /格式无法识别/);
 });
 
+test('HTML at the native model route falls back to one read-only request to the configured API', async () => {
+    const requests = [];
+    const host = {
+        location: { href: 'https://tavern.test/chat' }, document: { baseURI: 'https://static.test/phone/' },
+        fetch: async (url, options) => {
+            requests.push({ url: String(url), options });
+            return new URL(url).origin === 'https://tavern.test'
+                ? new Response('<!DOCTYPE html><title>Login</title>') : Response.json({ data: [{ id: 'run-model' }] });
+        },
+    };
+    const transport = new Transport(host, assert.fail);
+    transport.token = 'test-key';
+    const settings = { ...DEFAULTS, apiMode: 'custom', base: 'https://provider.test/v1/models', model: 'run-model' };
+    const context = { getRequestHeaders: () => ({ 'X-CSRF-Token': 'tavern-only' }) };
+    assert.deepEqual(await transport.execute(settings, context, [], { models: true }), ['run-model']);
+    assert.deepEqual(requests.map(request => request.url), ['https://tavern.test/api/backends/chat-completions/status', 'https://provider.test/v1/models']);
+    assert.equal(requests[0].options.mode, 'same-origin');
+    assert.equal(requests[1].options.method, 'GET');
+    assert.equal(requests[1].options.credentials, 'omit');
+    assert.equal(requests[1].options.redirect, 'error');
+    assert.deepEqual(requests[1].options.headers, { Accept: 'application/json', Authorization: 'Bearer test-key' });
+    await assert.rejects(transport.execute(settings, context, [], { test: true }), /酒馆生成接口/);
+    assert.equal(requests.length, 3);
+});
+
 test('DeepSeek requests require an explicit session key and preserve its authorization through the proxy', async () => {
     let calls = 0;
     const host = { document: { baseURI: 'https://tavern.test/' }, fetch: async (url, options) => {

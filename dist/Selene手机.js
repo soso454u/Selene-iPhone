@@ -1,4 +1,4 @@
-// Selene build: 95aedfe6b89e
+// Selene build: a017fb258595
 ;(function(){
 'use strict';
 const modules={"./domain.cjs": function(module,exports,require){
@@ -1684,6 +1684,14 @@ module.exports = { DEFAULT_PRESET, LEGACY_DEFAULT_PRESET, PRESET_LIMIT, validate
 "./host.cjs": function(module,exports,require){
 const importers = new WeakMap();
 
+function tavernApiUrl(host, path) {
+    return new URL(`/api/${path}`, host.location?.href || host.document.baseURI);
+}
+
+function isHtmlResponse(response, text) {
+    return /\btext\/html\b/i.test(response.headers?.get('content-type') || '') || /^\s*<(?:!doctype\b|html\b|head\b|body\b)/i.test(text || '');
+}
+
 async function loadModule(host, path) {
     try {
         let importer = importers.get(host);
@@ -1698,7 +1706,7 @@ async function loadModule(host, path) {
     }
 }
 
-module.exports = { loadModule };
+module.exports = { loadModule, tavernApiUrl, isHtmlResponse };
 
 },
 "./api-profiles.cjs": function(module,exports,require){
@@ -2419,6 +2427,7 @@ module.exports = { DEFAULTS, phoneSettings, normalizeOutput, loadModule, basePeo
 "./api.cjs": function(module,exports,require){
 const { clip, newId } = require('./domain.cjs');
 const { loadModule, normalizeOutput } = require('./context.cjs');
+const { tavernApiUrl, isHtmlResponse } = require('./host.cjs');
 
 const OUTPUT_KEYS = ['max_tokens', 'max_completion_tokens', 'max_output_tokens', 'max_new_tokens', 'max_length', 'n_predict', 'num_predict', 'max_tokens_to_generate'];
 function clearOutputLimit(data) {
@@ -2568,7 +2577,12 @@ class Transport {
                 if (!models) { data.stream = false; delete data.tools; delete data.tool_choice; delete data.stop; }
             }
             controller.signal.throwIfAborted();
-            return await this.request(context, `chat-completions/${models ? 'status' : 'generate'}`, data, controller.signal, models, onProgress);
+            try {
+                return await this.request(context, `chat-completions/${models ? 'status' : 'generate'}`, data, controller.signal, models, onProgress);
+            } catch (error) {
+                if (!models || settings.apiMode !== 'custom' || error.code !== 'TAVERN_ROUTE') throw error;
+                return await this.directModels(data.custom_url, token, controller.signal, error);
+            }
         } catch (error) {
             if (controller.signal.aborted) throw new Error('手机请求已取消');
             if (error instanceof TypeError) throw new Error('无法连接酒馆服务器或响应格式异常');
@@ -2576,11 +2590,27 @@ class Transport {
         } finally { if (this.job === job) this.job = null; }
     }
 
+    async directModels(base, token, signal, routeError) {
+        const headers = { Accept: 'application/json' };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        let response;
+        try {
+            response = await this.host.fetch(`${base}/models`, { method: 'GET', headers, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', signal });
+        } catch {
+            signal.throwIfAborted();
+            throw new Error(`${routeError.message} 浏览器直连失败，可手动填写模型 ID。`);
+        }
+        const result = await response.json().catch(() => null);
+        if (!response.ok || result?.error) throw new Error(failureMessage(result, response.status, true));
+        if (result == null) throw new Error('独立 API 的模型列表接口返回了无效响应，可手动填写模型 ID。');
+        return modelList(result);
+    }
+
     async request(context, endpoint, data, signal, models, onProgress) {
         const headers = new Headers(context.getRequestHeaders());
         headers.set('Content-Type', 'application/json');
-        const response = await this.host.fetch(new URL(`api/backends/${endpoint}`, this.host.document.baseURI), {
-            method: 'POST', credentials: 'same-origin', headers, body: JSON.stringify(data), signal,
+        const response = await this.host.fetch(tavernApiUrl(this.host, `backends/${endpoint}`), {
+            method: 'POST', mode: 'same-origin', credentials: 'same-origin', headers, body: JSON.stringify(data), signal,
         });
         let raw;
         if (response.ok && !models && response.body?.getReader) {
@@ -2593,8 +2623,14 @@ class Transport {
             raw ??= await response.text();
             try { result = JSON.parse(raw.replace(/^\uFEFF/, '').trim()); } catch { result = null; }
         } else result = await response.json().catch(() => null);
+        const missingRoute = [404, 405].includes(response.status);
+        if (result == null && (missingRoute || response.ok && isHtmlResponse(response, raw))) {
+            const error = new Error(models ? '酒馆模型列表接口返回了网页或路由不可用。' : '酒馆生成接口返回了网页或路由不可用，请刷新酒馆页面并检查代理路由。');
+            error.code = 'TAVERN_ROUTE';
+            throw error;
+        }
         if (!response.ok || result?.error) throw new Error(failureMessage(result, response.status, models));
-        if (result == null) throw new Error(/^\s*(?:<!doctype|<html)/i.test(raw || '') ? 'API 返回了网页而非模型数据。请核对 Base URL 路径及酒馆代理路由。' : 'API 响应既不是有效 JSON，也不是可识别的流式数据；未写入手机。');
+        if (result == null) throw new Error('API 响应既不是有效 JSON，也不是可识别的流式数据；未写入手机。');
         if (models) return modelList(result);
         const value = result?.choices?.[0]?.message?.content ?? result?.choices?.[0]?.text ?? result?.content ?? result?.response ?? context.extractMessageFromData?.(result, 'openai');
         const content = Array.isArray(value) ? value.map(part => typeof part === 'string' ? part : part?.text ?? '').join('') : value;
@@ -2664,7 +2700,7 @@ module.exports = { Transport, connection, parseReply, modelList, streamReply, fi
 "./resources.cjs": function(module,exports,require){
 const { digest } = require('./domain.cjs');
 const { worldbook, regexes, socialRegexes } = require('./bundled.cjs');
-const { loadModule } = require('./host.cjs');
+const { loadModule, tavernApiUrl, isHtmlResponse } = require('./host.cjs');
 
 const fingerprint = value => {
     const sort = item => Array.isArray(item) ? item.map(sort) : item && typeof item === 'object' ? Object.fromEntries(Object.keys(item).sort().map(key => [key, sort(item[key])])) : item;
@@ -2710,10 +2746,15 @@ function planResources(current, originals, records, mode, regex = false) {
 class Resources {
     constructor(host, helper, context, loadNative = path => loadModule(host, path)) { Object.assign(this, { host, helper, context, loadNative }); }
     async request(path, body) {
-        const response = await this.host.fetch(new URL(`api/${path}`, this.host.document.baseURI), { method: 'POST', headers: this.context.getRequestHeaders(), body: JSON.stringify(body) });
-        if (!response.ok) throw new Error(`联动资源保存失败 HTTP ${response.status}；未标记成功。`);
+        const response = await this.host.fetch(tavernApiUrl(this.host, path), { method: 'POST', mode: 'same-origin', headers: this.context.getRequestHeaders(), body: JSON.stringify(body) });
         const text = await response.text();
-        try { return JSON.parse(text); } catch { return null; }
+        if ((response.ok && isHtmlResponse(response, text)) || [404, 405].includes(response.status)) {
+            const error = new Error(`酒馆接口 ${path} 返回了网页或不可用（HTTP ${response.status}）。请刷新酒馆页面后重试。`);
+            error.code = 'TAVERN_ROUTE';
+            throw error;
+        }
+        if (!response.ok) throw new Error(`酒馆接口 ${path} 请求失败（HTTP ${response.status}）。`);
+        try { return JSON.parse(text.trim()); } catch { return null; }
     }
     async inspect(book) {
         const card = this.context.characters?.[this.context.characterId];
@@ -2814,6 +2855,7 @@ module.exports = { STICKERS, PLATFORMS, platformId, safeUrl, mediaData, socialDa
 const { digest } = require('./domain.cjs');
 const { fingerprint } = require('./resources.cjs');
 const { backupState, stateHashes, mergeBackupData } = require('./portable.cjs');
+const { tavernApiUrl, isHtmlResponse } = require('./host.cjs');
 
 const FIELD = 'tavern_pocket_v1';
 function mergeEvents(local, remote) {
@@ -2869,11 +2911,14 @@ class Cloud {
         const context = session.context;
         if (context.groupId) throw new Error('群聊云端元数据保存尚未适配；可使用本地账本导出恢复。');
         const file = String(context.getCurrentChatId()).replace(/\.jsonl$/, '');
-        const response = await this.host.fetch(new URL(context.groupId ? 'api/chats/group/get' : 'api/chats/get', this.host.document.baseURI), {
-            method: 'POST', headers: context.getRequestHeaders(), body: JSON.stringify(context.groupId ? { id: file } : { avatar_url: context.characters[context.characterId].avatar, file_name: file }),
+        const response = await this.host.fetch(tavernApiUrl(this.host, 'chats/get'), {
+            method: 'POST', mode: 'same-origin', headers: context.getRequestHeaders(), body: JSON.stringify({ avatar_url: context.characters[context.characterId].avatar, file_name: file }),
         });
         if (!response.ok) throw new Error(`云端回读失败 HTTP ${response.status}`);
-        const rows = await response.json();
+        const text = await response.text();
+        let rows;
+        try { rows = JSON.parse(text.trim()); }
+        catch { throw new Error(isHtmlResponse(response, text) ? '酒馆聊天接口返回了网页，请刷新酒馆页面后重试。' : '酒馆聊天接口返回的数据无法读取。'); }
         if (!Array.isArray(rows)) throw new Error('服务器尚无可验证的聊天文件，请先在酒馆保存一次聊天。');
         const story = values => fingerprint(values.map(row => [row.name, row.is_user, row.mes, row.swipe_id ?? 0]));
         this.storyMatches = story(rows.slice(1)) === story(session.chat);
@@ -2939,6 +2984,16 @@ const boundStyle = card => {
     return payload?.format === 'tavern-pocket-style' && payload.version === 1 && payload.settings && typeof payload.settings === 'object' ? styleValues(payload.settings) : null;
 };
 
+const record = value => value && typeof value === 'object' && !Array.isArray(value);
+
+function cardJson(text) {
+    if (typeof text !== 'string') return null;
+    try {
+        const card = JSON.parse(text);
+        return record(card) ? card : null;
+    } catch { return null; }
+}
+
 class CardStyles {
     constructor(ledger, account) { Object.assign(this, { ledger, account, cache: new Map() }); }
     key(card) { return `card-style:${this.account}:${card.avatar}`; }
@@ -2973,25 +3028,58 @@ class CardStyles {
         if (JSON.stringify(result).length > 10 * 1024 * 1024) throw new Error('角色外观配置超过 10 MiB，请减少背景图片体积。');
         return { format: 'tavern-pocket-style', version: 1, settings: result };
     }
-    async bind(resources, card, values) {
-        const payload = await this.portable(values);
+    async bind(resources, card, values, getContext = () => resources.context) {
+        if (this.binding) throw new Error('角色绑定正在保存，请稍候。');
         const target = card.avatar;
-        const valid = () => !resources.context.groupId && resources.context.characters?.[resources.context.characterId]?.avatar === target;
-        if (!valid()) throw new Error('请打开要绑定的单个角色卡。');
-        const before = await resources.request('characters/get', { avatar_url: target });
-        if (!before?.data || !valid()) throw new Error('角色已变化或服务器角色数据不可读，未保存。');
-        await resources.request('characters/merge-attributes', { avatar: target, data: { extensions: { [STYLE_FIELD]: payload } } });
-        const saved = await resources.request('characters/get', { avatar_url: target });
-        if (fingerprint(saved?.data?.extensions?.[STYLE_FIELD]) !== fingerprint(payload)) throw new Error('绑定内容回读不一致，请重新检查；未报告绑定成功。');
-        card.data ??= {}; card.data.extensions ??= {}; card.data.extensions[STYLE_FIELD] = payload;
-        if (card.json_data) {
-            const json = JSON.parse(card.json_data); json.data ??= {}; json.data.extensions ??= {}; json.data.extensions[STYLE_FIELD] = payload;
-            card.json_data = JSON.stringify(json);
+        const currentCard = () => {
+            const context = getContext();
+            return !context?.groupId ? context?.characters?.[context.characterId] : null;
+        };
+        const assertTarget = () => {
+            if (!target || currentCard()?.avatar !== target) throw new Error('当前角色已切换，请重新打开要绑定的单个角色聊天。');
+        };
+        let exportCard = false;
+        const read = async () => {
+            if (exportCard) return resources.request('characters/export', { avatar_url: target, format: 'json' });
+            let result;
+            try { result = await resources.request('characters/get', { avatar_url: target }); }
+            catch (error) { if (error.code !== 'TAVERN_ROUTE') throw error; }
+            if (result?.avatar && result.avatar !== target) throw new Error('酒馆返回了不同的角色卡，请刷新页面后重试。');
+            if (record(result?.data)) return result;
+            const raw = cardJson(result?.json_data);
+            if (record(raw?.data)) return raw;
+            exportCard = true;
+            return resources.request('characters/export', { avatar_url: target, format: 'json' });
+        };
+        this.binding = true;
+        try {
+            assertTarget();
+            const payload = await this.portable(values);
+            const before = await read();
+            if (!record(before?.data)) throw new Error('酒馆未返回当前角色卡数据，无法保存绑定。');
+            assertTarget();
+            await resources.request('characters/merge-attributes', { avatar: target, data: { extensions: { [STYLE_FIELD]: payload } } });
+            const saved = await read();
+            if (fingerprint(saved?.data?.extensions?.[STYLE_FIELD] ?? null) !== fingerprint(payload)) throw new Error('绑定内容回读不一致，请重新检查角色卡。');
+            const active = currentCard();
+            const updated = active?.avatar === target ? active : card;
+            if (!record(updated.data)) updated.data = {};
+            if (!record(updated.data.extensions)) updated.data.extensions = {};
+            updated.data.extensions[STYLE_FIELD] = payload;
+            const json = cardJson(updated.json_data) || cardJson(saved.json_data) || (updated.json_data ? { ...saved, json_data: undefined } : null);
+            if (json) {
+                if (!record(json.data)) json.data = {};
+                if (!record(json.data.extensions)) json.data.extensions = {};
+                json.data.extensions[STYLE_FIELD] = payload;
+                updated.json_data = JSON.stringify(json);
+            }
+            const editor = resources.host.document.querySelector?.('#character_json_data');
+            if (editor && active === updated) editor.value = updated.json_data || JSON.stringify(updated);
+            await this.saveLocal(updated, payload.settings);
+            return payload;
+        } finally {
+            this.binding = false;
         }
-        const editor = resources.host.document.querySelector?.('#character_json_data');
-        if (editor && valid()) editor.value = card.json_data || JSON.stringify(card);
-        await this.saveLocal(card, payload.settings);
-        return payload;
     }
 }
 module.exports = { CardStyles, STYLE_FIELD, STYLE_KEYS, styleValues, boundStyle };
@@ -6906,7 +6994,6 @@ class Phone {
                 return this.el('details', 'platform-prompt', this.el('summary', '', `${name}${settings.platformPrompts?.[id] ? ' · 自定义' : ''}`),
                     this.el('div', 'form', input, this.button(`恢复${name}默认文本`, () => { input.value = PLATFORM_RULES[name].text; input.dispatchEvent(new this.host.Event('change', { bubbles: true })); }, 'link')));
             }));
-        const store = () => this.action('settings', { ...values(), ...promptValues(), platformApis: Object.fromEntries(Object.entries(platformFields).map(([key, select]) => [key, select.value])) });
         form.onsubmit = event => event.preventDefault();
         const modelField = field('model', '自定义模型');
         const profiles = this.select([['', '选择已保存的 API 方案'], ...(settings.apiProfiles || []).map(profile => [profile.id, profile.name])], settings.activeApiProfile || '');
@@ -6921,7 +7008,7 @@ class Phone {
         const modelPicker = state?.models?.length ? this.select([['', '从服务端列表选择模型'], ...state.models.map(id => [id, id])], state.models.includes(settings.model) ? settings.model : '') : null;
         if (modelPicker) { modelPicker.setAttribute('aria-label', '服务端模型列表'); modelPicker.onchange = () => { if (modelPicker.value) { fields.model.value = modelPicker.value; fields.model.dispatchEvent(new this.host.Event('change', { bubbles: true })); } }; }
         form.append(this.heading('设置', 'PREFERENCES'), this.settingsGroup('连接与模型', '生成通路、API 和模型参数', 'wifi', field('apiMode', '生成通路', 'choice', [['tavern', '酒馆当前连接'], ['custom', '独立 OpenAI 兼容 API']]),
-            field('base', '独立 Base URL'), field('secret', '独立 API 密钥（持久保存）', 'password'), modelPicker, this.el('div', 'settings-model-row', modelField, this.button('拉取模型', async () => { await this.flushAutosaves(); this.action('models'); }, 'outline')), profileControls,
+            field('base', '独立 Base URL'), field('secret', '独立 API 密钥（持久保存）', 'password'), modelPicker, this.el('div', 'settings-model-row', modelField, this.button('拉取模型', async () => { if ((await this.flushAutosaves()).every(Boolean)) await this.action('models'); }, 'outline')), profileControls,
             field('streaming', '独立 API 流式接收', 'checkbox'), this.small('逐步接收以减轻网关等待；完整结构化回复接收成功后才显示和写入账本。连接测试成功只代表短请求可用。'),
             field('temperature', '独立温度', 'number'), field('output', '手机最大输出 Token（0＝不额外限制）', 'number'), this.small('默认不发送输出上限，由服务商决定。可填写任意有效正整数；要求明确上限的原生服务沿用当前连接设置。'), this.el('div', 'actions', this.button('测试连接', async () => { await this.flushAutosaves(); this.action('test'); }, 'outline'), this.button('清除当前密钥', () => this.action('settings', { secret: '' }), 'link')),
             this.small('连接测试会发一个不含剧情的短请求。模型列表不请求生成。密钥保存在当前酒馆账号的浏览器存储中，刷新或更新脚本后保留；不进入剧情、聊天备份或提示词。')),
@@ -6953,7 +7040,7 @@ class Phone {
                 field('rpTimeAuto', '从正文自动读取 RP 时间', 'checkbox'), this.small(`当前剧情时间：${state?.rpTime || '尚未识别'}。读取正文的明确时间，不按设备时间推算；关闭自动读取可手动指定。`), field('rpTime', '手动 RP 时间（未识别时使用，可留空）')),
             this.settingsGroup('角色绑定与分享', state?.cardBound ? `已绑定 ${state.cardName}` : '让背景、表情包和手机预设随角色卡分享', 'contacts',
                 this.small('绑定后，外观修改按当前角色单独保存。修改后需再次更新绑定，才会写入角色卡；导出角色卡和本脚本即可分享。API 密钥、个人头像和聊天记录不会写入角色卡。'),
-                this.button(state?.cardBound ? '更新当前角色绑定' : '绑定当前角色', () => this.dialog(`绑定到 ${state?.cardName || '当前角色'}？`, this.small('保存当前背景、表情包及手机预设到角色卡。上传的背景会一并嵌入，不依赖本机文件路径。'), async () => { if (await store()) this.action('bindCharacter'); }), 'outline'),
+                this.button(state?.cardBound ? '更新当前角色绑定' : '绑定当前角色', () => this.dialog(`绑定到 ${state?.cardName || '当前角色'}？`, this.small('保存当前背景、表情包及手机预设到角色卡。上传的背景会一并嵌入，不依赖本机文件路径。'), async () => { if ((await this.flushAutosaves()).every(Boolean)) await this.action('bindCharacter', { avatar: state?.cardAvatar }); }), 'outline'),
                 this.button('恢复默认脚本', () => this.dialog('恢复默认脚本？', this.small('恢复默认外观、表情包和手机预设；若当前角色已绑定，同时更新其默认模板。保留 API 连接及密钥、聊天账本、原版正则和世界书。'), () => this.action('resetPhoneDefaults')), 'outline')),
             this.settingsGroup('本地账本', '导出聊天或恢复备份', 'debug', this.small('导出当前酒馆聊天下的全部手机聊天、各平台、相册、设置和提示词；不包含 API 连接与密钥。云端同步使用相同范围。'), this.el('div', 'actions', this.button('导出当前聊天', () => this.action('backup'), 'outline'), this.button('恢复备份', () => {
                 const file = this.input('file', ''); file.accept = '.json,application/json';
@@ -7190,7 +7277,10 @@ function start(frame) {
                     await cloud.sync(fresh); phone.updateCloudStatus(cloud.status);
                     if (phone.view !== 'settings' && !phone.pop && !phone.textInput(phone.shadow.activeElement)) await refresh();
                 }
-            } catch (error) { fail(error); }
+            } catch (error) {
+                cloud.status = `自动云端保存失败：${error.message}`;
+                phone.updateCloudStatus(cloud.status);
+            }
         }, 1800);
     }
 
@@ -7289,7 +7379,7 @@ function start(frame) {
         if (!valid()) return null;
         const card = st.characters?.[st.characterId];
         const cardScoped = !st.groupId && styles.scoped(card);
-        return { ...state, cardScoped, cardBound: !st.groupId && !!boundStyle(card), cardName: card?.name || '', trail, people, groups: groups || [], prefs: cardScoped ? { ...prefs, chatBackgrounds: {} } : prefs || {}, manual: manual || [], parser, valid, scanFailed: scan?.failed };
+        return { ...state, cardScoped, cardBound: !st.groupId && !!boundStyle(card), cardAvatar: !st.groupId ? card?.avatar : undefined, cardName: card?.name || '', trail, people, groups: groups || [], prefs: cardScoped ? { ...prefs, chatBackgrounds: {} } : prefs || {}, manual: manual || [], parser, valid, scanFailed: scan?.failed };
     }
 
     function resolveThreads(session, rows) {
@@ -7602,16 +7692,21 @@ function start(frame) {
             const st = getContext();
             const card = st.characters?.[st.characterId];
             if (name === 'bindCharacter' && (!session?.valid() || st.groupId || !card?.avatar)) throw new Error('请先打开要绑定的单个角色聊天。');
+            if (name === 'bindCharacter' && data.avatar !== card.avatar) throw new Error('当前角色已切换，请重新确认要绑定的角色。');
             resources.context = st;
             if (name === 'bindCharacter') {
                 const values = styleValues(settings);
                 const ownThread = threadKey([PLAYER, `card:${card.avatar}`]);
                 const ownBackground = session.prefs.chatBackgrounds?.[ownThread];
                 if (ownBackground) values.pageBackgrounds = { ...values.pageBackgrounds, chat: ownBackground };
-                await styles.bind(resources, card, values);
+                await styles.bind(resources, card, values, getContext);
             } else if (card?.avatar && !st.groupId) {
-                if (boundStyle(card)) await styles.bind(resources, card, { ...styleValues(), wallpaperLibrary: settings.wallpaperLibrary });
+                if (boundStyle(card)) await styles.bind(resources, card, { ...styleValues(), wallpaperLibrary: settings.wallpaperLibrary }, getContext);
                 else await styles.saveLocal(card, { ...styleValues(), wallpaperLibrary: settings.wallpaperLibrary });
+            }
+            if (name === 'bindCharacter' && getState()?.scope !== session.scope) {
+                setNotice(`已保存 ${card.name || '原角色'} 的绑定。`);
+                return refresh();
             }
             accountSettings = phoneSettings({ ...accountSettings, ...styleValues(), wallpaperLibrary: accountSettings.wallpaperLibrary, ...(name === 'resetPhoneDefaults' ? { showLauncher: true, musicIsland: true, launcherPosition: null, userAvatar: '' } : {}) });
             st.accountStorage.setItem(`${KEY}:settings`, JSON.stringify(accountSettings));

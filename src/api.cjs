@@ -1,5 +1,6 @@
 const { clip, newId } = require('./domain.cjs');
 const { loadModule, normalizeOutput } = require('./context.cjs');
+const { tavernApiUrl, isHtmlResponse } = require('./host.cjs');
 
 const OUTPUT_KEYS = ['max_tokens', 'max_completion_tokens', 'max_output_tokens', 'max_new_tokens', 'max_length', 'n_predict', 'num_predict', 'max_tokens_to_generate'];
 function clearOutputLimit(data) {
@@ -149,7 +150,12 @@ class Transport {
                 if (!models) { data.stream = false; delete data.tools; delete data.tool_choice; delete data.stop; }
             }
             controller.signal.throwIfAborted();
-            return await this.request(context, `chat-completions/${models ? 'status' : 'generate'}`, data, controller.signal, models, onProgress);
+            try {
+                return await this.request(context, `chat-completions/${models ? 'status' : 'generate'}`, data, controller.signal, models, onProgress);
+            } catch (error) {
+                if (!models || settings.apiMode !== 'custom' || error.code !== 'TAVERN_ROUTE') throw error;
+                return await this.directModels(data.custom_url, token, controller.signal, error);
+            }
         } catch (error) {
             if (controller.signal.aborted) throw new Error('手机请求已取消');
             if (error instanceof TypeError) throw new Error('无法连接酒馆服务器或响应格式异常');
@@ -157,11 +163,27 @@ class Transport {
         } finally { if (this.job === job) this.job = null; }
     }
 
+    async directModels(base, token, signal, routeError) {
+        const headers = { Accept: 'application/json' };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        let response;
+        try {
+            response = await this.host.fetch(`${base}/models`, { method: 'GET', headers, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', signal });
+        } catch {
+            signal.throwIfAborted();
+            throw new Error(`${routeError.message} 浏览器直连失败，可手动填写模型 ID。`);
+        }
+        const result = await response.json().catch(() => null);
+        if (!response.ok || result?.error) throw new Error(failureMessage(result, response.status, true));
+        if (result == null) throw new Error('独立 API 的模型列表接口返回了无效响应，可手动填写模型 ID。');
+        return modelList(result);
+    }
+
     async request(context, endpoint, data, signal, models, onProgress) {
         const headers = new Headers(context.getRequestHeaders());
         headers.set('Content-Type', 'application/json');
-        const response = await this.host.fetch(new URL(`api/backends/${endpoint}`, this.host.document.baseURI), {
-            method: 'POST', credentials: 'same-origin', headers, body: JSON.stringify(data), signal,
+        const response = await this.host.fetch(tavernApiUrl(this.host, `backends/${endpoint}`), {
+            method: 'POST', mode: 'same-origin', credentials: 'same-origin', headers, body: JSON.stringify(data), signal,
         });
         let raw;
         if (response.ok && !models && response.body?.getReader) {
@@ -174,8 +196,14 @@ class Transport {
             raw ??= await response.text();
             try { result = JSON.parse(raw.replace(/^\uFEFF/, '').trim()); } catch { result = null; }
         } else result = await response.json().catch(() => null);
+        const missingRoute = [404, 405].includes(response.status);
+        if (result == null && (missingRoute || response.ok && isHtmlResponse(response, raw))) {
+            const error = new Error(models ? '酒馆模型列表接口返回了网页或路由不可用。' : '酒馆生成接口返回了网页或路由不可用，请刷新酒馆页面并检查代理路由。');
+            error.code = 'TAVERN_ROUTE';
+            throw error;
+        }
         if (!response.ok || result?.error) throw new Error(failureMessage(result, response.status, models));
-        if (result == null) throw new Error(/^\s*(?:<!doctype|<html)/i.test(raw || '') ? 'API 返回了网页而非模型数据。请核对 Base URL 路径及酒馆代理路由。' : 'API 响应既不是有效 JSON，也不是可识别的流式数据；未写入手机。');
+        if (result == null) throw new Error('API 响应既不是有效 JSON，也不是可识别的流式数据；未写入手机。');
         if (models) return modelList(result);
         const value = result?.choices?.[0]?.message?.content ?? result?.choices?.[0]?.text ?? result?.content ?? result?.response ?? context.extractMessageFromData?.(result, 'openai');
         const content = Array.isArray(value) ? value.map(part => typeof part === 'string' ? part : part?.text ?? '').join('') : value;

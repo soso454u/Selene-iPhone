@@ -1,5 +1,13 @@
 const importers = new WeakMap();
 
+function tavernApiUrl(host, path) {
+    return new URL(`/api/${path}`, host.location?.href || host.document.baseURI);
+}
+
+function isHtmlResponse(response, text) {
+    return /\btext\/html\b/i.test(response.headers?.get('content-type') || '') || /^\s*<(?:!doctype\b|html\b|head\b|body\b)/i.test(text || '');
+}
+
 async function loadModule(host, path) {
     try {
         let importer = importers.get(host);
@@ -14,4 +22,4 @@ async function loadModule(host, path) {
     }
 }
 
-module.exports = { loadModule };
+module.exports = { loadModule, tavernApiUrl, isHtmlResponse };
