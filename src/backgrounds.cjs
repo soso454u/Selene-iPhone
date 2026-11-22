@@ -1,13 +1,7 @@
 const { safeUrl } = require('./media.cjs');
+const { WALLPAPERS } = require('./wallpapers.cjs');
 
 const PAGES = { home: '主屏幕', lock: '锁屏', messages: '信息列表', chat: '默认聊天背景', contacts: '通讯录', moments: '朋友圈', redbook: '小红书', douyin: '抖音', weibo: '微博', forum: '论坛', x: 'X', album: '相册', music: '音乐', imagegen: '生图', notifications: '通知', settings: '设置', debug: '调试', characterPhone: '角色手机' };
-const WALLPAPERS = {
-    dusk: { name: '暮紫' }, ocean: { name: '蓝绿海岸' }, peach: { name: '珊瑚日落' },
-    'photo-1': { name: '精选壁纸 1', image: 'https://iili.io/oFQgbj9.md.png' },
-    'photo-2': { name: '精选壁纸 2', image: 'https://iili.io/oFQrLPa.md.png' },
-    'photo-3': { name: '精选壁纸 3', image: 'https://iili.io/oFQipgs.md.png' },
-    'photo-4': { name: '精选壁纸 4', image: 'https://iili.io/oFQsH7f.md.png' },
-};
 const BACKGROUNDS = { default: '应用默认', pearl: '珍珠白', mist: '雾蓝', blush: '浅杏粉', sage: '鼠尾草', dusk: '暮色', image: '自定义图片' };
 const GRADIENTS = { pearl: 'linear-gradient(145deg,#fffdfa,#f0eeea)', mist: 'linear-gradient(155deg,#e6eef7,#f3f7fa 54%,#dce9ef)', blush: 'linear-gradient(150deg,#f7e8e5,#faf5f1 60%,#eee4ee)', sage: 'linear-gradient(160deg,#dfe9e2,#f3f4ed 55%,#d5e3db)', dusk: 'linear-gradient(145deg,#182538,#242333 65%,#152d39)' };
 

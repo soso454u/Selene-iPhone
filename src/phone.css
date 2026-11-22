@@ -1522,3 +1522,25 @@ pre { overflow-wrap: anywhere; white-space: pre-wrap; max-height: 215px; overflo
 .character-sync-details summary { color: var(--muted); font-size: 11px; cursor: pointer; }
 .character-sync-preview { max-height: 150px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 11px; line-height: 1.7; color: var(--muted); margin: 10px 0 0; }
 @media (max-height: 650px) { .character-phone-widget { padding: 17px 21px; margin-bottom: 13px; } .character-phone-grid .app { min-height: 120px; padding: 11px 13px; } }
+
+.wallpaper-library { display: grid; gap: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }
+.wallpaper-library-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.wallpaper-library-heading > strong { font-size: 13px; }
+.wallpaper-library-heading > small { color: var(--muted); font-size: 10px; }
+.wallpaper-library-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.wallpaper-library-grid:empty { display: none; }
+.wallpaper-library-item { overflow: hidden; min-width: 0; border: 1px solid var(--line); border-radius: 13px; background: var(--card); }
+.wallpaper-library-item.selected { border-color: var(--accent); }
+.wallpaper-library-apply { display: grid; width: 100%; padding: 0; text-align: left; }
+.wallpaper-thumb { display: block; width: 100%; height: 105px; object-fit: cover; background: var(--surface); color: var(--muted); font-size: 10px; }
+.wallpaper-library-apply > span { display: grid; gap: 4px; padding: 9px; min-width: 0; }
+.wallpaper-library-apply strong { font-size: 12px; font-weight: 550; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.wallpaper-library-apply small { color: var(--muted); font-size: 10px; }
+.wallpaper-library-actions { display: flex; justify-content: space-between; gap: 3px; padding: 0 5px 5px; }
+.wallpaper-library-actions .link { padding: 5px 3px; font-size: 9px; }
+.wallpaper-status { font-size: 10px; overflow-wrap: anywhere; }
+.wallpaper-status.error { color: #bc5366; }
+.wallpaper-editor-preview { display: grid; place-items: center; min-height: 115px; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); color: var(--muted); font-size: 12px; }
+.wallpaper-editor-preview img { display: block; width: 100%; height: 150px; object-fit: cover; }
+.wallpaper-preview-failed { opacity: .55; }
+.wallpaper-editor .primary { min-height: 40px; border-radius: 12px; }

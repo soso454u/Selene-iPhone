@@ -16,6 +16,7 @@ const { CardStyles, STYLE_KEYS, styleValues, boundStyle } = require('./card-styl
 const { PLATFORMS, platformId, safeUrl } = require('./media.cjs');
 const { profileValues, saveProfile, cleanCredentials, generationConnection } = require('./api-profiles.cjs');
 const { PAGES, cleanBackground, selectBackground, backgroundStyle } = require('./backgrounds.cjs');
+const { Wallpapers, wallpaperImage } = require('./wallpapers.cjs');
 const { resolveRpTime } = require('./story-time.cjs');
 
 const KEY = 'tavern-pocket:v1';
@@ -42,6 +43,7 @@ function start(frame) {
     let accountSettings = settings;
     const helper = host.TavernHelper || frame.TavernHelper;
     const ledger = new Ledger(host);
+    const wallpapers = new Wallpapers(host, ledger);
     const styles = new CardStyles(ledger, account);
     const photos = new Photos(ledger, host);
     const images = new ImageService(host, ledger, account, getContext);
@@ -128,6 +130,7 @@ function start(frame) {
     let refreshNumber = 0;
     let clearing = false;
     let dataRevision = 0;
+    let wallpaperRevision = 0;
     const downloads = new Set();
 
     const getState = () => {
@@ -272,7 +275,18 @@ function start(frame) {
         if (Object.hasOwn(patch, 'socialCommonPrompt')) patch.socialCommonPrompt = patch.socialCommonPrompt?.trim() ? validatePreset(patch.socialCommonPrompt) : SOCIAL_COMMON_PROMPT;
         if (Object.hasOwn(patch, 'platformPrompts')) patch.platformPrompts = cleanPlatformPrompts(patch.platformPrompts, true);
         if (Object.hasOwn(patch, 'preset')) patch.preset = validatePreset(patch.preset);
-        if (Object.hasOwn(patch, 'wallpaperImage') && patch.wallpaperImage && !safeUrl(patch.wallpaperImage) && !/^data:image\/(png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(patch.wallpaperImage)) throw new Error('壁纸请使用有效 HTTP(S) 图片地址或上传图片。');
+        const wallpaperChange = ['wallpaper', 'wallpaperImage', 'wallpaperLibrary'].some(key => Object.hasOwn(patch, key));
+        const wallpaperVersion = wallpaperChange ? ++wallpaperRevision : wallpaperRevision;
+        const wallpaperScope = getState()?.scope;
+        if (Object.hasOwn(patch, 'wallpaperImage') && patch.wallpaperImage) {
+            if (!wallpaperImage(patch.wallpaperImage)) throw new Error('壁纸请使用有效图片链接或上传本地图片。');
+            const source = patch.wallpaperImage;
+            const resolved = await wallpapers.resolve(source);
+            if (disposed || wallpaperVersion !== wallpaperRevision) return;
+            if (getState()?.scope !== wallpaperScope) throw new Error('角色或聊天已切换，未保存壁纸。');
+            // Keep small local asset references; persist a direct image URL for a share page.
+            if (!source.startsWith('asset:')) patch.wallpaperImage = resolved;
+        }
         if (Object.hasOwn(patch, 'userAvatar') && patch.userAvatar && (!phoneSettings({ userAvatar: patch.userAvatar }).userAvatar)) throw new Error('头像请使用有效 HTTP(S) 图片地址或上传 2 MiB 以内的图片。');
         const changedService = (Object.hasOwn(patch, 'base') && patch.base !== settings.base) || (Object.hasOwn(patch, 'apiMode') && patch.apiMode !== settings.apiMode);
         const next = phoneSettings({ ...settings, ...patch });
@@ -502,10 +516,10 @@ function start(frame) {
                 if (ownBackground) values.pageBackgrounds = { ...values.pageBackgrounds, chat: ownBackground };
                 await styles.bind(resources, card, values);
             } else if (card?.avatar && !st.groupId) {
-                if (boundStyle(card)) await styles.bind(resources, card, styleValues());
-                else await styles.saveLocal(card, styleValues());
+                if (boundStyle(card)) await styles.bind(resources, card, { ...styleValues(), wallpaperLibrary: settings.wallpaperLibrary });
+                else await styles.saveLocal(card, { ...styleValues(), wallpaperLibrary: settings.wallpaperLibrary });
             }
-            accountSettings = phoneSettings({ ...accountSettings, ...styleValues(), ...(name === 'resetPhoneDefaults' ? { showLauncher: true, musicIsland: true, launcherPosition: null, userAvatar: '' } : {}) });
+            accountSettings = phoneSettings({ ...accountSettings, ...styleValues(), wallpaperLibrary: accountSettings.wallpaperLibrary, ...(name === 'resetPhoneDefaults' ? { showLauncher: true, musicIsland: true, launcherPosition: null, userAvatar: '' } : {}) });
             st.accountStorage.setItem(`${KEY}:settings`, JSON.stringify(accountSettings));
             getState(); phone.appearance(settings);
             mutationSerial++; queueCloud();
@@ -552,6 +566,34 @@ function start(frame) {
             return saveSettings({ ...profile.values, activeApiProfile: profile.id, secret: credentials.profiles[profile.id] || '' }, `已应用「${profile.name}」及其保存的密钥。`);
         }
         if (name === 'resources') { resources.context = getContext(); return phone.resourcePanel(await resources.inspect(data.book), resources); }
+        if (['saveWallpaper', 'applyWallpaper', 'deleteWallpaper'].includes(name)) {
+            const expectedScope = getState()?.scope;
+            const valid = () => !disposed && getState()?.scope === expectedScope;
+            const old = settings.wallpaperLibrary.find(item => item.id === data.id);
+            if (name !== 'saveWallpaper' && !old) throw new Error('这张壁纸已不在列表中，请重新选择。');
+            if (name === 'applyWallpaper') return saveSettings({ wallpaper: `saved:${old.id}`, wallpaperImage: '' }, `已使用壁纸「${old.name}」。`);
+            if (name === 'deleteWallpaper') return saveSettings({ wallpaperLibrary: settings.wallpaperLibrary.filter(item => item.id !== old.id), ...(settings.wallpaper === `saved:${old.id}` ? { wallpaper: 'dusk', wallpaperImage: '' } : {}) }, `已从我的壁纸移除「${old.name}」。`);
+            const nameValue = clip(data.name, 60);
+            if (!nameValue) throw new Error('请给壁纸取一个名字。');
+            if (data.id && !old) throw new Error('原壁纸已被移除，请重新添加。');
+            if (settings.wallpaperLibrary.some(item => item.id !== old?.id && item.name.toLocaleLowerCase() === nameValue.toLocaleLowerCase())) throw new Error('已有同名壁纸，请换一个名字或编辑原壁纸。');
+            if (!old && settings.wallpaperLibrary.length >= 30) throw new Error('我的壁纸最多保存 30 张，请先移除不需要的壁纸。');
+            let source = data.url || old?.image || data.source;
+            if (data.file) {
+                if (data.file.size > 2 * 1024 * 1024 || !/^image\/(png|jpeg|webp|gif)$/.test(data.file.type)) throw new Error('请选择 2 MiB 以内的 PNG/JPEG/WebP/GIF 图片。');
+                source = await new Promise((resolve, reject) => { const reader = new host.FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(data.file); });
+            }
+            const resolved = await wallpapers.resolve(source);
+            if (!valid()) throw new Error('角色或聊天已切换，未保存壁纸。');
+            let image = source.startsWith('asset:') ? source : resolved;
+            if (resolved.startsWith('data:') && !source.startsWith('asset:')) {
+                const assetId = newId(); await ledger.saveMeta(`background:${assetId}`, { data: resolved }); image = `asset:${assetId}`;
+            }
+            if (!valid()) throw new Error('角色或聊天已切换，未保存壁纸。');
+            const item = { id: old?.id || newId(), name: nameValue, image };
+            const library = old ? settings.wallpaperLibrary.map(row => row.id === old.id ? item : row) : [...settings.wallpaperLibrary, item];
+            return saveSettings({ wallpaperLibrary: library, wallpaper: `saved:${item.id}`, wallpaperImage: '' }, `壁纸「${item.name}」已保存并使用，之后可从列表切换。`);
+        }
         if (name === 'wallpaperFile' || name === 'avatarFile') {
             if (!data.file || data.file.size > 2 * 1024 * 1024 || !/^image\/(png|jpeg|webp|gif)$/.test(data.file.type)) throw new Error('请选择 2 MiB 以内的 PNG/JPEG/WebP/GIF 图片。');
             const value = await new Promise((resolve, reject) => { const reader = new host.FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(data.file); });
@@ -931,7 +973,7 @@ function start(frame) {
         return refresh();
     }
 
-    const phone = new Phone(host, settings, (name, data) => action(name, data).then(result => ['draftImagePrompt', 'generateAttachmentImage'].includes(name) ? result : true, error => { if (!error.queueCancelled) fail(error); return false; }), eventStatus, frame);
+    const phone = new Phone(host, settings, (name, data) => action(name, data).then(result => ['draftImagePrompt', 'generateAttachmentImage'].includes(name) ? result : true, error => { if (!error.queueCancelled) fail(error); return false; }), eventStatus, frame, source => wallpapers.resolve(source));
     phone.hasApiKey = Boolean(transport.token);
     phone.resourceManager = resources;
     let disposalStarted = false;
@@ -946,7 +988,7 @@ function start(frame) {
         host.clearTimeout(cloudTimer);
         frame.removeEventListener('pagehide', dispose);
         if (host !== frame) host.removeEventListener('pagehide', dispose);
-        requests.close(); generation?.cancel(); transport.close(); images.cancel(); photos.close(); sync.close(); ledger.close(); phone.close();
+        requests.close(); generation?.cancel(); transport.close(); images.cancel(); wallpapers.close(); photos.close(); sync.close(); ledger.close(); phone.close();
         if (context.eventTypes?.CHAT_CHANGED) context.eventSource.removeListener(context.eventTypes.CHAT_CHANGED, installHiding);
         for (const url of downloads) host.URL.revokeObjectURL(url);
         if (host[slot] === dispose) delete host[slot];

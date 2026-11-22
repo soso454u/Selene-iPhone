@@ -4,7 +4,7 @@ const { join } = require('node:path');
 
 const root = join(__dirname, '..');
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-const modules = ['domain', 'request-queue', 'storage', 'portable', 'story-sources', 'story-time', 'sync', 'image-rules', 'phone-preset', 'host', 'api-profiles', 'backgrounds', 'character-phone', 'context', 'api', 'resources', 'media', 'cloud', 'card-style', 'photos', 'image-service', 'music-island', 'music-app', 'ui', 'main'];
+const modules = ['domain', 'request-queue', 'storage', 'portable', 'story-sources', 'story-time', 'sync', 'image-rules', 'phone-preset', 'host', 'api-profiles', 'wallpapers', 'backgrounds', 'character-phone', 'context', 'api', 'resources', 'media', 'cloud', 'card-style', 'photos', 'image-service', 'music-island', 'music-app', 'ui', 'main'];
 const definitions = modules.map(name => `${JSON.stringify(`./${name}.cjs`)}: function(module,exports,require){\n${readFileSync(join(root, 'src', `${name}.cjs`), 'utf8')}\n}`);
 definitions.push(`"./bundled.cjs":function(module){module.exports=${JSON.stringify({ worldbook: JSON.parse(readFileSync(join(root, 'iMessage世界书.json'), 'utf8')), regexes: JSON.parse(readFileSync(join(root, 'regex-imessage-native.json'), 'utf8')), socialRegexes: JSON.parse(readFileSync(join(root, 'regex-social-story-weibo.json'), 'utf8')) })}}`);
 definitions.push(`"./style.cjs":function(module){module.exports=${JSON.stringify(readFileSync(join(root, 'src', 'phone.css'), 'utf8'))}}`);

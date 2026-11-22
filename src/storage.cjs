@@ -2,6 +2,7 @@ const { VERSION, PLAYER, KINDS, active, clip, digest } = require('./domain.cjs')
 const { cleanBackgroundMap, imageSource } = require('./backgrounds.cjs');
 const { photoSource, dataImageBlob, validImageBlob } = require('./photos.cjs');
 const { PREF_KEYS, pick, portablePhone } = require('./portable.cjs');
+const { appearanceImages } = require('./wallpapers.cjs');
 
 function resultOf(request) {
     return new Promise((resolve, reject) => {
@@ -149,10 +150,11 @@ class Ledger {
         const chatBackgrounds = cleanBackgroundMap(prefs.chatBackgrounds);
         phone = portablePhone(phone);
         const assets = {};
-        for (const config of [...Object.values(chatBackgrounds), ...Object.values(phone.settings?.pageBackgrounds || {}), ...Object.values(phone.style?.pageBackgrounds || {})]) {
+        for (const config of [...Object.values(chatBackgrounds), ...appearanceImages(phone.settings), ...appearanceImages(phone.style)]) {
             if (!config.image.startsWith('asset:')) continue;
             const id = config.image.slice(6); const asset = await this.readMeta(`background:${id}`);
-            if (asset) assets[id] = asset;
+            if (!asset?.data) throw new Error('壁纸或背景图片内容不存在，请重新上传后再备份。');
+            assets[id] = asset;
         }
         const photos = await this.readMeta(`photos:${scope}`) || [];
         const photoAssets = {};
@@ -184,7 +186,7 @@ class Ledger {
         const importedBackgrounds = cleanBackgroundMap(importedPrefs.chatBackgrounds || backup.chatBackgrounds);
         const phone = portablePhone(backup.phone);
         const assets = [];
-        for (const config of [...Object.values(importedBackgrounds), ...Object.values(phone.settings?.pageBackgrounds || {}), ...Object.values(phone.style?.pageBackgrounds || {})]) {
+        for (const config of [...Object.values(importedBackgrounds), ...appearanceImages(phone.settings), ...appearanceImages(phone.style)]) {
             const id = config.image.startsWith('asset:') ? config.image.slice(6) : '';
             const asset = backup.backgroundAssets?.[id];
             if (id && asset?.data?.length < 3 * 1024 * 1024 && /^data:image\//.test(imageSource(asset.data))) assets.push({ key: `background:${id}`, value: { data: asset.data } });

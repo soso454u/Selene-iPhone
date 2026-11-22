@@ -8,6 +8,7 @@ const { loadModule } = require('./host.cjs');
 const { cleanProfiles } = require('./api-profiles.cjs');
 const { safeUrl } = require('./media.cjs');
 const { cleanBackgroundMap, imageSource } = require('./backgrounds.cjs');
+const { WALLPAPERS, wallpaperImage, cleanWallpaperLibrary } = require('./wallpapers.cjs');
 
 const DEFAULTS = Object.freeze({
     apiMode: 'tavern', base: '', model: '', temperature: 0.85, output: 0, outputLimitVersion: 1, streaming: true, apiProfiles: [], activeApiProfile: '', platformApis: {}, budget: 12000, storyLimit: 20,
@@ -15,7 +16,7 @@ const DEFAULTS = Object.freeze({
     socialCommonPrompt: SOCIAL_COMMON_PROMPT, platformPrompts: {}, musicIsland: true,
     preset: DEFAULT_PRESET, presetEnabled: true, lore: true, dynamic: true, autoCloud: true, autoCloudDefaultVersion: 1,
     socialSync: { moments: true, redbook: false, douyin: false, weibo: false, forum: false, x: false },
-    theme: 'auto', showLauncher: true, launcherPosition: null, userAvatar: '', customStickers: [], wallpaper: 'dusk', wallpaperImage: '', wallpaperShade: 30, pageBackgrounds: {}, clockMode: 'device', scale: 100, rpTime: '', rpTimeAuto: true, auto: 'off', every: 8,
+    theme: 'auto', showLauncher: true, launcherPosition: null, userAvatar: '', customStickers: [], wallpaper: 'dusk', wallpaperImage: '', wallpaperLibrary: [], wallpaperShade: 30, pageBackgrounds: {}, clockMode: 'device', scale: 100, rpTime: '', rpTimeAuto: true, auto: 'off', every: 8,
 });
 
 function phoneSettings(input) {
@@ -36,6 +37,10 @@ function phoneSettings(input) {
     settings.platformPrompts = cleanPlatformPrompts(settings.platformPrompts);
     settings.socialCommonPrompt = cleanSocialCommonPrompt(settings.socialCommonPrompt);
     settings.pageBackgrounds = cleanBackgroundMap(settings.pageBackgrounds, true);
+    settings.wallpaperLibrary = cleanWallpaperLibrary(settings.wallpaperLibrary);
+    settings.wallpaperImage = wallpaperImage(settings.wallpaperImage);
+    if (!Object.hasOwn(WALLPAPERS, settings.wallpaper) && !settings.wallpaperLibrary.some(item => `saved:${item.id}` === settings.wallpaper)) settings.wallpaper = 'dusk';
+    settings.wallpaperShade = Math.min(85, Math.max(0, Number(settings.wallpaperShade) || 0));
     settings.customStickers = Array.isArray(settings.customStickers) ? settings.customStickers.filter(item => typeof item?.name === 'string' && safeUrl(item.url)).slice(0, 100).map(item => ({ name: clip(item.name, 40), url: safeUrl(item.url) })).filter(item => item.name) : [];
     const userAvatar = imageSource(settings.userAvatar);
     settings.userAvatar = userAvatar.startsWith('asset:') || userAvatar.length > 3 * 1024 * 1024 ? '' : userAvatar;

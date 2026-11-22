@@ -10,6 +10,7 @@ const { PAGES, WALLPAPERS, BACKGROUNDS, backgroundStyle } = require('./backgroun
 const { MusicIsland } = require('./music-island.cjs');
 const { MusicApp } = require('./music-app.cjs');
 const { CharacterPhone } = require('./character-phone.cjs');
+const { wallpaperSource } = require('./wallpapers.cjs');
 
 function chatTime(value) {
     const raw = String(value || '').trim();
@@ -109,8 +110,8 @@ const APPS = {
 };
 
 class Phone {
-    constructor(host, settings, action, status, frame = host) {
-        Object.assign(this, { host, doc: host.document, action, status, visible: false, view: 'home', search: '', draft: '', quote: '', actors: new Map(), rememberScroll: false });
+    constructor(host, settings, action, status, frame = host, resolveWallpaper = null) {
+        Object.assign(this, { host, doc: host.document, action, status, resolveWallpaper, visible: false, view: 'home', search: '', draft: '', quote: '', actors: new Map(), rememberScroll: false });
         this.settingsSections = new Set();
         this.feedTabs = new Map();
         this.root = this.el('div');
@@ -285,11 +286,41 @@ class Phone {
         this.boundLauncher();
         this.panel.dataset.theme = settings.theme;
         this.panel.dataset.wallpaper = settings.wallpaper;
-        const image = safeUrl(settings.wallpaperImage) || (/^data:image\/(png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(settings.wallpaperImage || '') ? settings.wallpaperImage : '') || WALLPAPERS[settings.wallpaper]?.image || '';
-        const shade = Math.min(85, Math.max(0, Number(settings.wallpaperShade) || 0)) / 100;
-        this.panel.style.setProperty('--custom-wall', image ? `linear-gradient(rgb(0 0 0 / ${shade}),rgb(0 0 0 / ${shade})),url(${JSON.stringify(image)}),var(--wall)` : 'var(--wall)');
+        const source = wallpaperSource(settings);
+        if (this.wallpaperSourceKey !== source) {
+            this.wallpaperSourceKey = source; this.wallpaperResolved = '';
+            this.wallpaperStatus(source ? '正在检查壁纸图片…' : '使用内置壁纸');
+            if (source && this.resolveWallpaper) this.resolveWallpaper(source).then(image => {
+                if (!this.root.isConnected || this.wallpaperSourceKey !== source) return;
+                this.wallpaperResolved = image; this.paintWallpaper(); this.wallpaperStatus('壁纸图片已加载');
+            }).catch(error => {
+                if (!this.root.isConnected || this.wallpaperSourceKey !== source) return;
+                this.wallpaperStatus(error.message, true);
+                if (this.visible) this.notice(error.message, true);
+            });
+            else if (source && !source.startsWith('asset:')) this.wallpaperResolved = source;
+        }
+        this.paintWallpaper();
         this.windowScale = Number(settings.scale) / 100 || 1;
         this.bound();
+    }
+
+    paintWallpaper() {
+        const image = this.wallpaperResolved || '';
+        const shade = Math.min(85, Math.max(0, Number(this.settings.wallpaperShade) || 0)) / 100;
+        this.panel.style.setProperty('--custom-wall', image ? `linear-gradient(rgb(0 0 0 / ${shade}),rgb(0 0 0 / ${shade})),url(${JSON.stringify(image)}),var(--wall)` : 'var(--wall)');
+    }
+
+    wallpaperStatus(text, error = false) {
+        this.wallpaperFeedback = { text, error };
+        for (const node of this.content.querySelectorAll('[data-wallpaper-status]')) { node.textContent = text; node.classList.toggle('error', error); }
+    }
+
+    wallpaperPreview(source, classes = 'wallpaper-thumb') {
+        const image = this.el('img', classes); image.alt = '壁纸预览'; image.loading = 'lazy';
+        image.onerror = () => { image.classList.add('wallpaper-preview-failed'); image.alt = '图片加载失败'; };
+        if (source && this.resolveWallpaper) this.resolveWallpaper(source).then(url => { if (image.isConnected) image.src = url; }).catch(() => { if (image.isConnected) { image.classList.add('wallpaper-preview-failed'); image.alt = '图片加载失败'; } });
+        return image;
     }
 
     installWandMenu() {
@@ -1832,8 +1863,8 @@ class Phone {
         const player = people.get(PLAYER) || { name: state.context.name1 || '玩家' };
         const profileAvatar = this.button('', () => this.socialNicknameEditor(this.state, PLAYER), 'moments-profile-avatar', '设置我的网名'); profileAvatar.append(this.avatar(player, 'large'));
         const cover = this.el('div', 'moments-hero', this.el('div', 'moments-profile', this.el('div', '', this.el('strong', '', player.name), this.el('small', '', '朋友圈')), profileAvatar));
-        const image = safeUrl(this.settings.wallpaperImage) || WALLPAPERS[this.settings.wallpaper]?.image;
-        if (image) { const photo = this.el('img', 'moments-hero-image'); photo.src = image; photo.alt = ''; photo.referrerPolicy = 'no-referrer'; photo.onerror = () => photo.remove(); cover.prepend(photo); }
+        const image = wallpaperSource(this.settings);
+        if (image) { const photo = this.wallpaperPreview(image, 'moments-hero-image'); photo.alt = ''; photo.onerror = () => photo.remove(); cover.prepend(photo); }
         const list = this.el('div', 'moments-timeline');
         const posts = state.rows.filter(row => row.kind === 'post' && (tab === 'all' || (tab === 'mine' ? row.speakerId === PLAYER : reactions(state.rows, row, 'collect').some(item => item.speakerId === PLAYER))));
         for (const post of posts) {
@@ -2317,6 +2348,68 @@ class Phone {
         node.value = value; return node;
     }
 
+    wallpaperLibraryView() {
+        const library = this.settings.wallpaperLibrary || [];
+        const status = this.el('p', `small wallpaper-status${this.wallpaperFeedback?.error ? ' error' : ''}`, this.wallpaperFeedback?.text || '');
+        status.dataset.wallpaperStatus = 'true'; status.setAttribute('role', 'status');
+        const grid = this.el('div', 'wallpaper-library-grid', ...library.map(item => {
+            const active = this.settings.wallpaper === `saved:${item.id}` && !this.settings.wallpaperImage;
+            const apply = this.button('', async () => { await this.flushAutosaves(); this.action('applyWallpaper', { id: item.id }); }, 'wallpaper-library-apply', `使用壁纸：${item.name}`);
+            apply.append(this.wallpaperPreview(item.image), this.el('span', '', this.el('strong', '', item.name), this.el('small', '', active ? '正在使用' : '点击使用')));
+            return this.el('article', `wallpaper-library-item${active ? ' selected' : ''}`, apply,
+                this.el('div', 'wallpaper-library-actions', this.button('编辑名称 / 图片', () => this.wallpaperEditor(item), 'link', `编辑壁纸：${item.name}`),
+                    this.button('移除', async () => { await this.flushAutosaves(); this.action('deleteWallpaper', { id: item.id }); }, 'link danger', `移除壁纸：${item.name}`)));
+        }));
+        return this.el('section', 'wallpaper-library', this.el('div', 'wallpaper-library-heading', this.el('strong', '', '我的壁纸'), this.el('small', '', `${library.length} / 30`)),
+            grid, library.length ? null : this.small('把喜欢的图片取名保存，以后从上方壁纸列表直接切换。'), status,
+            this.el('div', 'actions', this.button('添加壁纸', () => this.wallpaperEditor(), 'outline'), this.button('保存当前壁纸', () => {
+                const input = this.content.querySelector('[data-keep="wallpaper-url"]');
+                const source = input?.value.trim() || wallpaperSource(this.settings);
+                if (!source) { this.notice('请先填写图片链接或上传图片。', true); return; }
+                this.wallpaperEditor({ source });
+            }, 'outline')));
+    }
+
+    wallpaperEditor(item = {}) {
+        const name = this.input('text', item.name || '', '给这张壁纸取个名字'); name.maxLength = 60; name.setAttribute('aria-label', '壁纸名称');
+        const initial = item.image || item.source || '';
+        const url = this.input('url', safeUrl(initial), '图片直链或 freeimage.host 分享链接'); url.setAttribute('aria-label', '壁纸图片链接');
+        const file = this.input('file', ''); file.accept = 'image/png,image/jpeg,image/webp,image/gif'; file.setAttribute('aria-label', '选择本地壁纸');
+        const preview = this.el('div', 'wallpaper-editor-preview', initial ? this.wallpaperPreview(initial) : this.el('span', '', '图片预览'));
+        const status = this.el('p', 'small'); status.setAttribute('role', 'status');
+        let temporary = ''; let revision = 0;
+        const revoke = () => { if (temporary) this.host.URL.revokeObjectURL(temporary); temporary = ''; };
+        const validFile = () => !file.files[0] || file.files[0].size <= 2 * 1024 * 1024 && /^image\/(png|jpeg|webp|gif)$/.test(file.files[0].type);
+        const showPreview = async () => {
+            const sequence = ++revision;
+            if (!validFile()) { status.textContent = '请选择 2 MiB 以内的 PNG/JPEG/WebP/GIF 图片。'; return; }
+            status.textContent = '正在检查图片…';
+            try {
+                let source;
+                if (file.files[0]) { revoke(); temporary = this.host.URL.createObjectURL(file.files[0]); source = temporary; }
+                else source = await this.resolveWallpaper(url.value.trim() || initial);
+                if (sequence !== revision || !preview.isConnected) return;
+                const image = this.el('img'); image.src = source; image.alt = '壁纸预览'; image.onerror = () => { status.textContent = '图片无法显示，请更换链接或图片。'; };
+                preview.replaceChildren(image); status.textContent = '可保存并加入我的壁纸';
+            } catch (error) { if (sequence === revision) status.textContent = error.message; }
+        };
+        file.onchange = () => { if (file.files[0]) { url.value = ''; if (!name.value.trim()) name.value = file.files[0].name.replace(/\.[^.]+$/, '').slice(0, 60); showPreview(); } };
+        url.oninput = () => { revision++; file.value = ''; revoke(); status.textContent = ''; };
+        const save = this.button('保存并使用', async () => {
+            if (save.disabled) return;
+            if (!name.value.trim()) { status.textContent = '请先给壁纸取一个名字。'; name.focus(); return; }
+            if (!validFile()) { status.textContent = '请选择 2 MiB 以内的 PNG/JPEG/WebP/GIF 图片。'; return; }
+            save.disabled = true; status.textContent = '正在检查并保存壁纸…';
+            await this.flushAutosaves();
+            const ok = await this.action('saveWallpaper', { id: item.id, name: name.value, url: url.value.trim(), source: initial, file: file.files[0] });
+            if (ok) this.closeDialog(); else { save.disabled = false; status.textContent = '未保存，请检查名称、链接或图片后重试。'; }
+        }, 'primary');
+        this.dialog(item.id ? '编辑我的壁纸' : '添加到我的壁纸', this.el('div', 'form wallpaper-editor', preview,
+            this.el('label', 'field', '壁纸名称', name), this.el('label', 'field', '图片链接', url), this.el('label', 'field', '或上传本地图片', file),
+            this.small('本地图片最大 2 MiB。支持图片直链和 freeimage.host 分享链接；保存后可在壁纸列表切换。'), this.button('预览图片', showPreview, 'outline'), status, save));
+        this.dialogCleanup = () => { revision++; revoke(); };
+    }
+
     authorInfo() {
         const musicUrl = 'https://github.com/soso454u/-';
         const address = this.input('text', musicUrl);
@@ -2358,6 +2451,8 @@ class Phone {
                 '随后在酒馆正文输入你的行动，例如：“我查看了她的手机，翻到她和朋友的聊天。” 选中的资料会随这条正文一起提供给模型。同步不自动替 user 写行动，也不代表所有人物都看见了内容。每次安排只交接一次；发送前可取消待注入内容，需要再次查阅时再主动选择。'),
             step('照片与生图分两步',
                 '「AI 生成说明与提示词」只准备图片文字；点击「生成图片」才请求生图。先在生图设置中配置酒馆生图或自己的图片接口，聊天照片也可直接选用相册图片。'),
+            step('保存自己的壁纸',
+                '在「设置 → 外观 → 我的壁纸」添加图片链接或上传本地图片，填写名称后保存。保存的图片会加入壁纸列表，可以直接切换、编辑名称或移除；也可把当前自定义壁纸取名保存。支持 freeimage.host 分享链接，保存前会检查图片能否显示。'),
             this.section('音乐功能 · 需要另装插件',
                 this.el('p', '', '使用音乐功能，需要先安装下方的 Selene 音乐插件。'),
                 this.el('ol', 'author-install-steps', this.el('li', '', '在酒馆中打开「扩展」，选择「安装扩展程序」。'),
@@ -2456,11 +2551,11 @@ class Phone {
                     () => this.action('clearData', { scope: state.scope })), 'outline danger')),
             this.settingsGroup('外观', '主题、壁纸和窗口缩放', 'moments', scaleControl, field('showLauncher', '显示悬浮手机图标', 'checkbox'), this.small('隐藏后，可从酒馆魔法棒工具栏 → Selene手机打开。悬浮图标支持拖动，位置会自动保存。'),
                 field('musicIsland', 'Selene 音乐灵动岛', 'checkbox'), this.small('检测到兼容播放器时自动联动；播放信息仅用于此界面，不进入剧情。'),
-                this.button('重置悬浮图标位置', () => this.action('launcherPosition', { position: null }), 'outline'), field('theme', '颜色模式', 'choice', [['auto', '跟随系统'], ['light', '浅色'], ['dark', '深色']]), field('wallpaper', '壁纸', 'choice', Object.entries(WALLPAPERS).map(([id, item]) => [id, item.name])),
+                this.button('重置悬浮图标位置', () => this.action('launcherPosition', { position: null }), 'outline'), field('theme', '颜色模式', 'choice', [['auto', '跟随系统'], ['light', '浅色'], ['dark', '深色']]), field('wallpaper', '壁纸', 'choice', [...Object.entries(WALLPAPERS).map(([id, item]) => [id, item.name]), ...settings.wallpaperLibrary.map(item => [`saved:${item.id}`, `我的壁纸 · ${item.name}`])]),
                 this.backgroundPages(state),
-                field('wallpaperImage', '自定义壁纸图片地址（留空使用内置）'), field('wallpaperShade', '壁纸遮罩 0–85', 'number'),
-                this.button('上传本地壁纸', () => { const file = this.input('file', ''); file.accept = 'image/png,image/jpeg,image/webp,image/gif'; this.dialog('上传壁纸', this.el('div', 'form', file, this.small('最大 2 MiB，保存在手机设置中。')), () => this.action('wallpaperFile', { file: file.files[0] })); }, 'outline'),
-                this.button('恢复内置壁纸', () => this.action('settings', { wallpaperImage: '', wallpaperShade: 30 }), 'outline'), field('clockMode', '锁屏与状态栏时钟', 'choice', [['device', '设备时钟（不推进剧情）'], ['rp', '剧情时间（未知时留空）']]),
+                field('wallpaperImage', '自定义壁纸图片链接（留空使用所选壁纸）'), field('wallpaperShade', '壁纸遮罩 0–85', 'number'),
+                this.wallpaperLibraryView(), this.button('上传本地壁纸', () => this.wallpaperEditor(), 'outline'),
+                this.button('恢复内置壁纸', () => this.action('settings', { wallpaper: 'dusk', wallpaperImage: '', wallpaperShade: 30 }), 'outline'), field('clockMode', '锁屏与状态栏时钟', 'choice', [['device', '设备时钟（不推进剧情）'], ['rp', '剧情时间（未知时留空）']]),
                 field('rpTimeAuto', '从正文自动读取 RP 时间', 'checkbox'), this.small(`当前剧情时间：${state?.rpTime || '尚未识别'}。读取正文的明确时间，不按设备时间推算；关闭自动读取可手动指定。`), field('rpTime', '手动 RP 时间（未识别时使用，可留空）')),
             this.settingsGroup('角色绑定与分享', state?.cardBound ? `已绑定 ${state.cardName}` : '让背景、表情包和手机预设随角色卡分享', 'contacts',
                 this.small('绑定后，外观修改按当前角色单独保存。修改后需再次更新绑定，才会写入角色卡；导出角色卡和本脚本即可分享。API 密钥、个人头像和聊天记录不会写入角色卡。'),
@@ -2473,6 +2568,7 @@ class Phone {
         // An explicit preset selection takes precedence over an earlier custom image.
         // Only the unsaved form changes here; the existing Save settings action persists it.
         fields.wallpaper.onchange = () => { fields.wallpaperImage.value = ''; };
+        fields.wallpaperImage.dataset.keep = 'wallpaper-url';
         const persona = state?.people?.find(person => person.id === PLAYER) || { id: PLAYER, name: state?.context?.name1 || '玩家', avatar: settings.userAvatar };
         const profile = this.button('', () => this.avatarEditor(persona), 'settings-profile', '修改我的头像');
         profile.append(this.avatar(persona, 'large'), this.el('span', '', this.el('strong', '', persona.name), this.el('small', '', '个人头像 · 点击更换')), this.icon('right'));

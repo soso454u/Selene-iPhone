@@ -2,7 +2,7 @@ const { phoneSettings } = require('./context.cjs');
 const { fingerprint } = require('./resources.cjs');
 
 const STYLE_FIELD = 'tavern_pocket_style';
-const STYLE_KEYS = ['theme', 'wallpaper', 'wallpaperImage', 'wallpaperShade', 'pageBackgrounds', 'customStickers', 'preset', 'presetEnabled', 'socialCommonPrompt', 'platformPrompts'];
+const STYLE_KEYS = ['theme', 'wallpaper', 'wallpaperImage', 'wallpaperLibrary', 'wallpaperShade', 'pageBackgrounds', 'customStickers', 'preset', 'presetEnabled', 'socialCommonPrompt', 'platformPrompts'];
 const styleValues = input => {
     const normalized = phoneSettings(input);
     return Object.fromEntries(STYLE_KEYS.map(key => [key, normalized[key]]));
@@ -35,12 +35,14 @@ class CardStyles {
     }
     async portable(values) {
         const result = structuredClone(styleValues(values));
-        for (const config of Object.values(result.pageBackgrounds)) {
+        const active = { image: result.wallpaperImage };
+        for (const config of [...Object.values(result.pageBackgrounds), ...result.wallpaperLibrary, active]) {
             if (!config.image?.startsWith('asset:')) continue;
             const asset = await this.ledger.readMeta(`background:${config.image.slice(6)}`);
             if (!asset?.data) throw new Error('绑定背景图片不存在，请重新上传后再绑定。');
             config.image = asset.data;
         }
+        result.wallpaperImage = active.image;
         if (JSON.stringify(result).length > 10 * 1024 * 1024) throw new Error('角色外观配置超过 10 MiB，请减少背景图片体积。');
         return { format: 'tavern-pocket-style', version: 1, settings: result };
     }
