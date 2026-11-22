@@ -13,7 +13,7 @@ const { portablePhone, portableSettings } = require('./portable.cjs');
 const { Photos, photoSource, photoSources } = require('./photos.cjs');
 const { ImageService, namedReferences } = require('./image-service.cjs');
 const { CardStyles, STYLE_KEYS, styleValues, boundStyle } = require('./card-style.cjs');
-const { PLATFORMS, platformId, safeUrl } = require('./media.cjs');
+const { PLATFORMS, platformId, safeUrl, xHandle, xSideStory } = require('./media.cjs');
 const { profileValues, saveProfile, cleanCredentials, generationConnection } = require('./api-profiles.cjs');
 const { PAGES, cleanBackground, selectBackground, backgroundStyle } = require('./backgrounds.cjs');
 const { Wallpapers, wallpaperImage } = require('./wallpapers.cjs');
@@ -327,7 +327,7 @@ function start(frame) {
         host.setTimeout(() => { if (downloads.delete(url)) host.URL.revokeObjectURL(url); }, 10000);
     }
 
-    async function insert(session, inputs, extra = []) {
+    async function insert(session, inputs, extra = [], meta = []) {
         if (!session?.valid()) throw new Error('聊天或有效分支已变化，未保存');
         const existing = await ledger.query(session.scope, { limit: 1 });
         if (!session.valid()) throw new Error('聊天或有效分支已变化，未保存');
@@ -336,9 +336,9 @@ function start(frame) {
         const stamp = Math.max(Date.now(), (existing.rows[0]?.stamp || 0) + 1);
         const rows = inputs.map((input, index) => makeEvent(session.scope, session.trail, { rpTime: session.rpTime, ...input }, session.people, { stamp: stamp + index,
             ...(['post', 'comment'].includes(input.kind) ? { speaker: socialNickname(session.people.find(person => person.id === input.speakerId), settings) || input.speaker } : {}),
-            ...input.extra, sync: settings.sync !== 'off' && (['comment', 'like', 'collect', 'repost', 'follow'].includes(input.kind) && typeof prefs.postSync?.[input.target] === 'boolean' ? prefs.postSync[input.target] : typeof input.extra?.sync === 'boolean' ? input.extra.sync : ['message', 'call'].includes(input.kind || 'message') || settings.socialSync[input.thread || 'moments'] === true) }));
+            ...input.extra, sync: !xSideStory(input) && settings.sync !== 'off' && (['comment', 'like', 'collect', 'repost', 'follow'].includes(input.kind) && typeof prefs.postSync?.[input.target] === 'boolean' ? prefs.postSync[input.target] : typeof input.extra?.sync === 'boolean' ? input.extra.sync : ['message', 'call'].includes(input.kind || 'message') || settings.socialSync[input.thread || 'moments'] === true) }));
         if (rows.some(row => !row.text)) throw new Error('请输入消息内容');
-        await ledger.write([...rows, ...extra]);
+        await ledger.write([...rows, ...extra], meta);
         queueCloud(session);
         return rows;
     }
@@ -348,7 +348,7 @@ function start(frame) {
             const known = session.people.find(person => person.id !== PLAYER && (person.id === comment.id || person.name === comment.nickname));
             const identity = known?.id || `network:${post.thread}:${digest(comment.id)}`;
             return { kind: 'comment', speakerId: identity, participants: unique([identity, post.speakerId]), audience: post.audience, thread: post.thread, rpTime: comment.postedAt || '', text: comment.text, target: post.id, quote: comment.quote,
-                payload: { simulated: true, networkId: comment.id }, extra: { speaker: known?.name || comment.nickname, names: unique([known?.name || comment.nickname, post.speaker]), ...extra } };
+                payload: { simulated: true, networkId: comment.id, ...(xSideStory(post) ? { sideStory: true } : {}) }, extra: { speaker: known?.name || comment.nickname, names: unique([known?.name || comment.nickname, post.speaker]), ...extra } };
         });
     }
 
@@ -368,6 +368,11 @@ function start(frame) {
         running = preview ? '正在重建上下文…' : '正在等待回复…';
         phone.activity(running);
         try {
+            const xAccountKey = mode === 'post' && thread.id === 'x' ? `x-account:${account}:${actor.id}` : '';
+            const storedHandle = xAccountKey ? xHandle(await ledger.readMeta(xAccountKey)) : '';
+            const priorPosts = xAccountKey && !storedHandle ? await ledger.query(session.scope, { thread: 'x', limit: 1, accept: row => row.kind === 'post' && row.speakerId === actor.id && active(row, session.trail) && xHandle(row.payload?.handle) }) : null;
+            const knownHandle = storedHandle || xHandle(priorPosts?.rows[0]?.payload?.handle);
+            if (knownHandle) hint = [hint, `沿用此角色的 X 账号 ${knownHandle}。`].filter(Boolean).join('\n');
             const pack = await compose(session, thread, actor, mode, hint, recall, replace, count, targetPost);
             if (!session.valid() || job.cancelled) throw new Error('聊天已变化或请求已取消');
             prepared = { ...pack, scope: session.scope, anchor: before(session.trail) };
@@ -392,6 +397,7 @@ function start(frame) {
             }
             const outputs = result.posts || result.messages.map((text, index) => ({ text, payload: index === 0 ? result.payload : undefined, memory: index === 0 ? result.memory : '' }));
             if (!outputs.length) { setNotice(`${actor.name} 暂未${mode === 'post' ? '发布动态' : '发消息'}。`); return; }
+            const accountHandle = xAccountKey ? knownHandle || outputs.map(row => xHandle(row.payload?.handle)).find(Boolean) : '';
             const bubbleGroup = newId();
             const originals = replace ? (await ledger.query(session.scope, { thread: thread.id, limit: 8, accept: row => active(row, session.trail) && (row.bubbleGroup ? row.bubbleGroup === replace.bubbleGroup : row.id === replace.id) })).rows : [];
             if (originals.some(row => session.trail.byEvent.has(row.id))) throw new Error('该回复已交接到正文，不能重写旧事实。');
@@ -399,11 +405,13 @@ function start(frame) {
                 const id = newId();
                 const sync = mode === 'post' && typeof inject === 'boolean' ? { sync: inject } : {};
                 const comments = mode === 'post' ? payload?.comments || [] : [];
-                const postPayload = mode === 'post' && payload ? Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'comments')) : payload;
-                return [{ kind: mode === 'post' ? 'post' : 'message', speakerId: actor.id, participants: mode === 'post' ? [actor.id] : thread.members, audience: thread.members, thread: thread.id, rpTime: mode === 'post' ? payload?.postedAt || '' : session.rpTime, text, payload: postPayload, extra: { id, bubbleGroup, ...sync, suggestedMemory: memory } },
-                    ...commentInputs(session, { id, thread: thread.id, speakerId: actor.id, speaker: actor.name, audience: thread.members }, comments, { bubbleGroup, ...sync })];
+                let postPayload = mode === 'post' && payload ? Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'comments' && key !== 'sideStory')) : payload;
+                if (xAccountKey) postPayload = { ...postPayload, handle: accountHandle || '', sideStory: true };
+                return [{ kind: mode === 'post' ? 'post' : 'message', speakerId: actor.id, participants: mode === 'post' ? [actor.id] : thread.members, audience: thread.members, thread: thread.id, rpTime: mode === 'post' ? payload?.postedAt || '' : session.rpTime, text, payload: postPayload, extra: { id, bubbleGroup, ...sync, suggestedMemory: xAccountKey ? '' : memory } },
+                    ...commentInputs(session, { id, thread: thread.id, speakerId: actor.id, speaker: actor.name, audience: thread.members, payload: postPayload }, comments, { bubbleGroup, ...sync })];
             });
-            const savedRows = await insert(session, inputs, originals.map(row => ({ ...row, deleted: true, revision: row.revision + 1 })));
+            const accountUpdate = accountHandle && accountHandle !== storedHandle ? [{ key: xAccountKey, value: accountHandle }] : [];
+            const savedRows = await insert(session, inputs, originals.map(row => ({ ...row, deleted: true, revision: row.revision + 1 })), accountUpdate);
             if ((await images.load()).autoGenerate) job.autoCandidate = photoSources(savedRows).find(item => !item.url);
             if (mode !== 'post') {
                 try { await checkpoint(ledger, session, thread.id, row => accepts(session, row)); }
@@ -731,7 +739,7 @@ function start(frame) {
             const actor = session.people.find(person => person.id === post.speakerId) || { id: post.speakerId, name: post.speaker };
             const existing = await ledger.query(scope, { thread: post.thread, limit: Infinity, accept: row => row.kind === 'comment' && active(row, trail) && row.audience.includes(PLAYER) && (row.target === post.id || post.reference && row.target === post.reference) });
             const target = { id: post.id, author: post.speaker, text: post.text, postedAt: post.rpTime, payload: post.payload, existingComments: existing.rows.map(row => ({ nickname: row.speaker, text: row.text })) };
-            await generate({ session, thread: { id: post.thread, members: unique([actor.id, ...post.audience]) }, actor, mode: 'comments', targetPost: target, inject: session.prefs.postSync?.[post.id] ?? (post.origin === 'phone' ? post.sync !== false : settings.socialSync?.[post.thread] === true) });
+            await generate({ session, thread: { id: post.thread, members: unique([actor.id, ...post.audience]) }, actor, mode: 'comments', targetPost: target, inject: postSyncEnabled(post, settings, session.prefs) });
             return;
         }
         if (name === 'clearData') {
@@ -861,6 +869,7 @@ function start(frame) {
             const row = await ledger.get(scope, data.id);
             const target = session.threads.find(item => item.id === data.thread && item.members.includes(PLAYER));
             if (!row || !active(row, trail) || !row.audience.includes(PLAYER) || !target || !session.valid()) throw new Error('消息或目标会话不可用');
+            if (xSideStory(row)) throw new Error('X 番外仅保留在 X 应用内。');
             await insert(session, [{ kind: 'message', speakerId: PLAYER, participants: target.members, thread: target.id, text: clip(`转发 ${row.speaker} 的${PLATFORMS[row.thread] || '消息'}：${row.payload?.title || ''} ${row.text}`), payload: row.kind === 'post' ? { components: [{ type: 'link', text: row.text, fields: { postId: row.id, platform: row.thread, author: row.speaker, title: row.payload?.title || row.text.slice(0, 60), image: photoSource(row.payload?.media?.[0]?.fields?.src) } }] } : row.payload }]);
             setNotice('已转发到所选手机会话。'); return refresh();
         }
@@ -922,6 +931,7 @@ function start(frame) {
         } else if (['edit', 'delete', 'remember', 'retry', 'toggleSync'].includes(name)) {
             const row = await ledger.get(scope, data.id);
             if (!row || !session.valid() || !active(row, trail) || !row.audience.includes(PLAYER)) throw new Error('这条记录不在当前有效分支');
+            if (xSideStory(row) && ['toggleSync', 'remember'].includes(name)) throw new Error('X 番外仅保留在 X 应用内。');
             if (name === 'toggleSync' && row.kind === 'post') {
                 const prefs = await ledger.readMeta(`${scope}:prefs`) || {};
                 const enabled = typeof data.enabled === 'boolean' ? data.enabled : !postSyncEnabled(row, settings, prefs);
@@ -953,7 +963,8 @@ function start(frame) {
         } else if (['like', 'comment', 'collect', 'repost', 'follow'].includes(name)) {
             const post = await ledger.get(scope, data.id);
             if (!post || post.kind !== 'post' || !session.valid() || !active(post, trail) || !post.audience.includes(PLAYER)) throw new Error('该动态已不在当前可见范围');
-            const inject = session.prefs.postSync?.[post.id] ?? (post.origin === 'phone' ? post.sync !== false : settings.socialSync?.[post.thread] === true);
+            const inject = postSyncEnabled(post, settings, session.prefs);
+            const sideStory = xSideStory(post) ? { sideStory: true } : null;
             if (['like', 'collect', 'follow'].includes(name)) {
                 const latest = (await ledger.query(scope, { thread: post.thread, limit: 1, accept: row => row.kind === name && row.speakerId === PLAYER && active(row, trail) && (name === 'follow' ? row.participants.includes(post.speakerId) : row.target === post.id || post.reference && row.target === post.reference) })).rows[0];
                 if (latest?.origin === 'phone' && !trail.byEvent.has(latest.id)) {
@@ -962,10 +973,10 @@ function start(frame) {
                 }
                 const enabled = !latest || latest.payload?.reactionActive === false;
                 const text = enabled ? ({ like: '赞了这条动态', collect: '收藏了这条内容', follow: '关注了作者' })[name] : ({ like: '取消了对这条动态的赞', collect: '取消收藏了这条内容', follow: '取消关注了作者' })[name];
-                await insert(session, [{ kind: name, speakerId: PLAYER, participants: [PLAYER, post.speakerId], audience: name === 'collect' ? [PLAYER] : post.audience, thread: post.thread, text, target: post.id, quote: post.text, payload: { reactionActive: enabled }, extra: { sync: inject } }]);
+                await insert(session, [{ kind: name, speakerId: PLAYER, participants: [PLAYER, post.speakerId], audience: name === 'collect' ? [PLAYER] : post.audience, thread: post.thread, text, target: post.id, quote: post.text, payload: { reactionActive: enabled, ...sideStory }, extra: { sync: inject } }]);
             } else {
                 const text = name === 'repost' ? '转发了这条内容' : clip(data.text);
-                await insert(session, [{ kind: name, speakerId: PLAYER, participants: [PLAYER, post.speakerId], audience: post.audience, thread: post.thread, text, target: post.id, quote: data.quote || post.text, extra: { sync: inject } }]);
+                await insert(session, [{ kind: name, speakerId: PLAYER, participants: [PLAYER, post.speakerId], audience: post.audience, thread: post.thread, text, target: post.id, quote: data.quote || post.text, ...(sideStory ? { payload: sideStory } : {}), extra: { sync: inject } }]);
             }
         } else if (name === 'backup') {
             const backup = await cloud.backup(session);

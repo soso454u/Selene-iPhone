@@ -22,6 +22,15 @@ test('a generated player comment is removed without discarding valid posts or ot
     assert.deepEqual(posts[1].payload.comments, []);
 });
 
+test('forum generation accepts a complete JSON reply wrapped in reasoning or Markdown, but never partial posts', () => {
+    const payload = { messages: ['这是一条论坛讨论'], payload: { title: '主题' } };
+    const json = JSON.stringify(payload);
+    for (const wrapped of [`<think>内部分析 {draft}</think>\n${json}`, `输出如下：\n\`\`\`json\n${json}\n\`\`\`\n结束`, `输出如下：\n${json}\n结束`]) {
+        assert.equal(parseReply(wrapped, 'post').payload.title, '主题');
+    }
+    for (const partial of [json.slice(0, -1), `[${json}`, `${json}\n${json}`, `\`\`\`json\n${json.slice(0, -1)}\n\`\`\``]) assert.throws(() => parseReply(partial, 'post'), /JSON/);
+});
+
 test('one batch protocol preserves each post payload and rejects extra or malformed posts', () => {
     const posts = Array.from({ length: 5 }, (_, i) => ({ text: `动态${i}`, payload: { title: `标题${i}`, media: Array.from({ length: [0, 1, 3, 2, 9][i] }, (_, image) => ({ type: 's-image', text: `画面${i}-${image}` })) } }));
     assert.deepEqual(parseReply(JSON.stringify({ posts }), 'post', 5).posts.map(row => row.payload.title), posts.map(row => row.payload.title));
@@ -48,7 +57,7 @@ test('social generation selects the current platform rules and preserves seven X
     assert.deepEqual(postCounts('小红书'), [1, 3, 5]);
     const prompt = phonePrompt(DEFAULT_PRESET, { enabled: true, post: true, platform: 'X', postCount: 7 }).text;
     assert.match(prompt, /生成 5–7 条/);
-    assert.match(prompt, /每条通常 1—2 句/);
+    assert.match(prompt, /每条通常 1–2 句/);
     const chat = phonePrompt(DEFAULT_PRESET, { enabled: true, post: false }).text;
     for (const rule of Object.values(PLATFORM_RULES)) assert.ok(!chat.includes(rule.text));
     const posts = Array.from({ length: 7 }, (_, i) => ({ text: `短帖${i}`, payload: { handle: '@night_notes', media: Array.from({ length: i % 4 }, (_, j) => ({ type: 's-image', text: `配图${j}` })) } }));
@@ -114,6 +123,11 @@ test('new social defaults retain the selected batch limits and at least fifteen 
     assert.deepEqual(restored.platformPrompts, { redbook: '我的小红书规则' });
     const edited = phoneSettings({ socialCommonPrompt: LEGACY_SOCIAL_DEFAULTS.common + '\n我的补充' });
     assert.ok(edited.socialCommonPrompt.includes('我的补充'));
+    assert.deepEqual(phoneSettings({ platformPrompts: { x: '我的独立 X 规则' } }).platformPrompts, { x: '我的独立 X 规则' });
+    const x = phonePrompt(DEFAULT_PRESET, { enabled: true, post: true, platform: 'X', postCount: 6 }).text;
+    assert.match(x, /成人内容账号.*明确成年/);
+    assert.match(x, /X 番外省略剧情记忆字段/);
+    assert.match(x, /payload\.counts/);
     for (const [platform, rule] of Object.entries(PLATFORM_RULES)) {
         const prompt = phonePrompt(DEFAULT_PRESET, { enabled: true, post: true, platform, postCount: platform === 'X' ? 6 : 3 }).text;
         assert.equal(prompt.split('[SOCIAL_COMMON]').length - 1, 1);
@@ -135,6 +149,34 @@ test('new social defaults retain the selected batch limits and at least fifteen 
     assert.equal(styles.values(card).wallpaper, 'peach');
     assert.equal(styles.values(card).socialCommonPrompt, SOCIAL_COMMON_PROMPT);
     assert.equal(styles.values(card).platformPrompts.x, '我自己的 X 规则');
+});
+
+test('TauriTavern binding uses the bridge for both readbacks and clears removed style keys in one write', async () => {
+    const old = { format: 'tavern-pocket-style', version: 1, settings: styleValues({ theme: 'dark', pageBackgrounds: { chat: { preset: 'dusk' } } }) };
+    const stored = { avatar: 'a.png', data: { extensions: { unrelated: 'keep', [STYLE_FIELD]: old } } };
+    const card = structuredClone(stored);
+    const context = { characterId: 0, characters: [card], getRequestHeaders: () => ({}) };
+    const routes = [];
+    const resources = new Resources({
+        document: { baseURI: 'tauri://localhost/' }, __TAURITAVERN_MAIN_READY__: Promise.resolve(),
+        fetch: async (url, options) => {
+            if (typeof url !== 'string') return new Response('<!doctype html>');
+            const path = new URL(url).pathname;
+            routes.push(path);
+            if (path === '/api/characters/get') return Response.json(stored);
+            assert.equal(path, '/api/characters/merge-attributes');
+            const patch = JSON.parse(options.body).data.extensions[STYLE_FIELD];
+            assert.deepEqual(patch.settings.pageBackgrounds, { chat: '__@@UNSET@@__' });
+            delete patch.settings.pageBackgrounds.chat;
+            stored.data.extensions[STYLE_FIELD] = patch;
+            return Response.json({ ok: true });
+        },
+    }, {}, context);
+    await new CardStyles(ledger(), 'account').bind(resources, card, { theme: 'light' });
+    assert.deepEqual(routes, ['/api/characters/get', '/api/characters/merge-attributes', '/api/characters/get']);
+    assert.deepEqual(boundStyle(card).pageBackgrounds, {});
+    assert.equal(boundStyle(card).theme, 'light');
+    assert.equal(stored.data.extensions.unrelated, 'keep');
 });
 
 test('card binding embeds local backgrounds and round-trips only portable styling, preserving unrelated extensions', async () => {
@@ -172,8 +214,9 @@ test('card binding reads through JSON export when the get route returns HTML and
     const resources = new Resources({
         location: { href: 'https://tavern.test/chat' }, document: { baseURI: 'https://static.test/phone/' },
         fetch: async (url, options) => {
-            assert.equal(url.origin, 'https://tavern.test');
-            const route = url.pathname.split('/').at(-1);
+            assert.equal(typeof url, 'string');
+            assert.equal(new URL(url).origin, 'https://tavern.test');
+            const route = new URL(url).pathname.split('/').at(-1);
             calls.push(route);
             const body = JSON.parse(options.body);
             assert.equal(body.avatar_url ?? body.avatar, card.avatar);

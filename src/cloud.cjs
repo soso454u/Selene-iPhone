@@ -1,7 +1,7 @@
 const { digest } = require('./domain.cjs');
 const { fingerprint } = require('./resources.cjs');
 const { backupState, stateHashes, mergeBackupData } = require('./portable.cjs');
-const { tavernApiUrl, isHtmlResponse } = require('./host.cjs');
+const { fetchTavern, isHtmlResponse } = require('./host.cjs');
 
 const FIELD = 'tavern_pocket_v1';
 function mergeEvents(local, remote) {
@@ -57,7 +57,7 @@ class Cloud {
         const context = session.context;
         if (context.groupId) throw new Error('群聊云端元数据保存尚未适配；可使用本地账本导出恢复。');
         const file = String(context.getCurrentChatId()).replace(/\.jsonl$/, '');
-        const response = await this.host.fetch(tavernApiUrl(this.host, 'chats/get'), {
+        const response = await fetchTavern(this.host, 'chats/get', {
             method: 'POST', mode: 'same-origin', headers: context.getRequestHeaders(), body: JSON.stringify({ avatar_url: context.characters[context.characterId].avatar, file_name: file }),
         });
         if (!response.ok) throw new Error(`云端回读失败 HTTP ${response.status}`);

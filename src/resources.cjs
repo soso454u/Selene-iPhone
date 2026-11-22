@@ -1,6 +1,6 @@
 const { digest } = require('./domain.cjs');
 const { worldbook, regexes, socialRegexes } = require('./bundled.cjs');
-const { loadModule, tavernApiUrl, isHtmlResponse } = require('./host.cjs');
+const { loadModule, fetchTavern, isHtmlResponse } = require('./host.cjs');
 
 const fingerprint = value => {
     const sort = item => Array.isArray(item) ? item.map(sort) : item && typeof item === 'object' ? Object.fromEntries(Object.keys(item).sort().map(key => [key, sort(item[key])])) : item;
@@ -46,7 +46,7 @@ function planResources(current, originals, records, mode, regex = false) {
 class Resources {
     constructor(host, helper, context, loadNative = path => loadModule(host, path)) { Object.assign(this, { host, helper, context, loadNative }); }
     async request(path, body) {
-        const response = await this.host.fetch(tavernApiUrl(this.host, path), { method: 'POST', mode: 'same-origin', headers: this.context.getRequestHeaders(), body: JSON.stringify(body) });
+        const response = await fetchTavern(this.host, path, { method: 'POST', mode: 'same-origin', headers: this.context.getRequestHeaders(), body: JSON.stringify(body) });
         const text = await response.text();
         if ((response.ok && isHtmlResponse(response, text)) || [404, 405].includes(response.status)) {
             const error = new Error(`酒馆接口 ${path} 返回了网页或不可用（HTTP ${response.status}）。请刷新酒馆页面后重试。`);

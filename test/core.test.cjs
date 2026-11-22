@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { PLAYER, active, before, eventStatus, handoffs, lineage, makeEvent, parseStory } = require('../src/domain.cjs');
-const { Sync, reconcileStories } = require('../src/sync.cjs');
+const { Sync, reconcileStories, pendingSyncEvents, postSyncEnabled } = require('../src/sync.cjs');
 const { conversationMemory } = require('../src/storage.cjs');
 const { DEFAULTS, basePeople, buildContext, phoneSettings } = require('../src/context.cjs');
 const { DEFAULT_PRESET, LEGACY_DEFAULT_PRESET, PRESET_LIMIT, validatePreset } = require('../src/phone-preset.cjs');
@@ -305,7 +305,7 @@ test('independent proxy keeps bearer in transport headers only and supports canc
     transport.token = 'test-secret';
     const pending = transport.execute({ ...setting, apiMode: 'custom', base: 'https://example.test/v1', model: 'test' }, { getRequestHeaders: () => ({}) }, [{ role: 'user', content: '只发送正文内容' }]);
     const body = JSON.parse(request.options.body);
-    assert.equal(request.url.hostname, 'tavern.test');
+    assert.equal(new URL(request.url).hostname, 'tavern.test');
     assert.doesNotMatch(JSON.stringify(body.messages), /test-secret/);
     assert.equal(JSON.parse(body.custom_include_headers).Authorization, 'Bearer test-secret');
     transport.cancel();
@@ -388,6 +388,21 @@ test('disabled posts and reference-linked comments never enter a new handoff eve
     const sync = new Sync({ ledger, getState: () => state, onError: assert.fail, onChange() {} });
     sync.begin('normal'); chat.push(user('继续')); await sync.sent(chat.length - 1);
     assert.deepEqual(handoffs(chat.at(-1).mes)[0].events.map(event => event.id), [other.id]);
+});
+
+test('X side stories and their interactions are visible in X but excluded from handoff and chat memory', async () => {
+    const chat = [reply('前情')]; const ledger = ledgerFixture(); const trail = lineage(chat); const scope = 'x-side-story';
+    const post = { ...message(scope, chat, { kind: 'post', thread: 'x', payload: { sideStory: true }, text: 'X 番外' }), memory: '仅 X 的旧标记' };
+    const comment = message(scope, chat, { kind: 'comment', thread: 'x', target: post.id, payload: { sideStory: true }, text: 'X 番外评论' });
+    const other = message(scope, chat, { thread: 'private', text: '可同步私聊' });
+    const prefs = { postSync: { [post.id]: true } };
+    await ledger.write([post, comment, other], [{ key: `${scope}:prefs`, value: prefs }]);
+    assert.equal(postSyncEnabled(post, setting, prefs), false);
+    assert.deepEqual((await pendingSyncEvents(ledger, scope, trail)).map(row => row.id), [other.id]);
+    const privateMemory = await conversationMemory(ledger, scope, trail, 'private', actor.id, [PLAYER, actor.id], () => true);
+    assert.deepEqual(privateMemory.states, []);
+    const xMemory = await conversationMemory(ledger, scope, trail, 'x', actor.id, [PLAYER, actor.id], () => true);
+    assert.equal(xMemory.recent.length, 2);
 });
 
 test('a post disabled during the pending read is rechecked before writing the native user message', async () => {

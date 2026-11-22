@@ -3,6 +3,8 @@ const { regexes } = require('./bundled.cjs');
 const STICKERS = Object.fromEntries([...regexes.map(entry => entry.replaceString).join('\n').matchAll(/\.im-sticker\[data-name="([^"]+)"\]\{background-image:url\("(https?:\/\/[^"\s]+)"\)/g)].map(match => [match[1], match[2]]));
 const PLATFORMS = { moments: '朋友圈', redbook: '小红书', douyin: '抖音', weibo: '微博', forum: '论坛', x: 'X' };
 const platformId = value => ['Twitter', '推特', 'twitter', 'X'].includes(value) ? 'x' : Object.keys(PLATFORMS).find(key => key === value || PLATFORMS[key] === value) || 'moments';
+const xSideStory = row => row?.thread === 'x' && row.payload?.sideStory === true;
+const xHandle = value => typeof value === 'string' && /^@[A-Za-z0-9_]{1,15}$/.test(value) ? value : '';
 const safeUrl = value => { try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : ''; } catch { return ''; } };
 function mediaData(body, attrs, entities) {
     const text = value => entities(String(value ?? '').replace(/<[^>]*>/g, '')).trim();
@@ -34,4 +36,4 @@ function notificationRows(rows, prefs, player) {
     return rows.filter(row => row.speakerId !== player && row.stamp > cleared && !prefs?.muted?.includes(row.thread));
 }
 
-module.exports = { STICKERS, PLATFORMS, platformId, safeUrl, mediaData, socialData, reactions, notificationRows };
+module.exports = { STICKERS, PLATFORMS, platformId, xSideStory, xHandle, safeUrl, mediaData, socialData, reactions, notificationRows };

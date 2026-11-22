@@ -33,8 +33,9 @@ test('unlimited output migrates old caps once; explicit positive limits have no 
 test('custom API omits token caps by default and never imports native modules for model queries', async () => {
     const requests = [];
     const host = { document: { baseURI: 'https://tavern.test/' }, fetch: async (url, options) => {
-        requests.push({ url: url.pathname, body: JSON.parse(options.body) });
-        return Response.json(url.pathname.endsWith('/status') ? { data: [{ id: 'test-model' }] } : { choices: [{ message: { content: '{"messages":[]}' } }] });
+        const path = new URL(url).pathname;
+        requests.push({ url: path, body: JSON.parse(options.body) });
+        return Response.json(path.endsWith('/status') ? { data: [{ id: 'test-model' }] } : { choices: [{ message: { content: '{"messages":[]}' } }] });
     } };
     const transport = new Transport(host, assert.fail);
     const settings = { ...DEFAULTS, apiMode: 'custom', base: 'https://example.test/v1', model: 'test-model' };
@@ -48,6 +49,39 @@ test('custom API omits token caps by default and never imports native modules fo
     assert.equal(requests.at(-1).body.max_tokens, 16);
     assert.deepEqual(await transport.execute({ ...settings, model: '' }, context, [], { models: true }), ['test-model']);
     for (const key of ['messages', 'model', 'max_tokens', 'temperature']) assert.equal(Object.hasOwn(requests.at(-1).body, key), false);
+});
+
+test('the TauriTavern WebView bridge receives string routes after readiness and runs phone requests quietly', async () => {
+    const requests = [];
+    let ready;
+    const host = {
+        location: { href: 'tauri://localhost/index.html' }, document: { baseURI: 'https://static.test/' },
+        __TAURITAVERN__: { ready: new Promise(resolve => { ready = resolve; }) },
+        fetch: async (url, options) => {
+            if (typeof url !== 'string') return new Response('<!doctype html><title>TauriTavern</title>');
+            const body = JSON.parse(options.body);
+            requests.push({ url, body });
+            if (url.endsWith('/status')) return Response.json({ data: [{ id: 'model' }] });
+            if (!body.stream) return Response.json({ choices: [{ message: { content: 'OK' } }] });
+            return new Response('data: {"choices":[{"delta":{"content":"{\\"messages\\":[\\"你好\\"]}"}}]}\n\ndata: [DONE]\n\n');
+        },
+    };
+    const transport = new Transport(host, assert.fail);
+    const settings = { ...DEFAULTS, apiMode: 'custom', base: 'https://provider.test/v1', model: 'model' };
+    const context = { getRequestHeaders: () => ({}) };
+    transport.token = 'test-key';
+    const modelList = transport.execute(settings, context, [], { models: true });
+    assert.equal(requests.length, 0);
+    ready();
+    assert.deepEqual(await modelList, ['model']);
+    assert.equal(await transport.execute({ ...settings, streaming: false }, context, [], { test: true }), 'OK');
+    const reply = await transport.execute(settings, context, [{ role: 'user', content: 'fixture' }]);
+    assert.deepEqual(parseReply(reply, 'reply').messages, ['你好']);
+    assert.deepEqual(requests.map(request => request.url), ['tauri://localhost/api/backends/chat-completions/status', 'tauri://localhost/api/backends/chat-completions/generate', 'tauri://localhost/api/backends/chat-completions/generate']);
+    assert.equal(requests[1].body.type, 'quiet');
+    assert.equal(requests[1].body.max_tokens, 16);
+    assert.equal(requests[2].body.type, 'quiet');
+    assert.deepEqual(JSON.parse(requests[2].body.custom_include_headers), { Authorization: 'Bearer test-key' });
 });
 
 test('model lists accept provider and proxy envelopes but never treat upstream errors as empty success', () => {

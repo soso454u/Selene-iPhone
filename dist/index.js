@@ -1,4 +1,4 @@
-// Selene build: bc4e9e5f8be5
+// Selene build: e27bd7ec68a7
 ;(function(){
 'use strict';
 const modules={"./domain.cjs": function(module,exports,require){
@@ -311,6 +311,7 @@ const { cleanBackgroundMap, imageSource } = require('./backgrounds.cjs');
 const { photoSource, dataImageBlob, validImageBlob } = require('./photos.cjs');
 const { PREF_KEYS, pick, portablePhone } = require('./portable.cjs');
 const { appearanceImages } = require('./wallpapers.cjs');
+const { xSideStory } = require('./media.cjs');
 
 function resultOf(request) {
     return new Promise((resolve, reject) => {
@@ -530,7 +531,7 @@ class Ledger {
 }
 
 async function conversationMemory(ledger, scope, trail, thread, speaker, audience, accepts, recall = false) {
-    const acceptsVisible = row => active(row, trail) && accepts(row) && row.audience.includes(speaker) && row.audience.includes(PLAYER) && audience.every(id => row.audience.includes(id));
+    const acceptsVisible = row => (thread === 'x' || !xSideStory(row)) && active(row, trail) && accepts(row) && row.audience.includes(speaker) && row.audience.includes(PLAYER) && audience.every(id => row.audience.includes(id));
     const recent = await ledger.query(scope, { thread, limit: 24, accept: acceptsVisible });
     const IDs = new Set(recent.rows.map(row => row.id));
     const states = await ledger.query(scope, { limit: 12, accept: row => !IDs.has(row.id) && row.thread !== thread && acceptsVisible(row) && !!row.memory });
@@ -844,7 +845,7 @@ module.exports = { storyTime, resolveRpTime };
 "./sync.cjs": function(module,exports,require){
 const { before, active, clip, digest, dialogue, handoffs, lineage, makeEvent, parseStory, serializeHandoff, threadKey } = require('./domain.cjs');
 const { cacheMemoryBlocks } = require('./story-sources.cjs');
-const { STICKERS } = require('./media.cjs');
+const { STICKERS, xSideStory } = require('./media.cjs');
 
 const echoText = value => String(value || '').replace(/\r\n/g, '\n').trim();
 function messageEchoKey(row, settings) {
@@ -885,6 +886,7 @@ async function handedOffMessages({ ledger, scope, chat, trail, floor, settings }
 }
 
 function postSyncEnabled(post, settings, prefs = {}) {
+    if (xSideStory(post)) return false;
     for (const key of [post.id, post.reference].filter(Boolean)) if (typeof prefs.postSync?.[key] === 'boolean') return prefs.postSync[key];
     return post.origin === 'phone' ? post.sync !== false : settings.socialSync?.[post.thread] === true;
 }
@@ -898,7 +900,7 @@ async function blockedPostSync(ledger, scope, trail) {
     }
     return blocked;
 }
-const allowedSync = (row, blocked) => row.kind !== 'phoneSnapshot' && row.sync !== false && (row.kind === 'post' ? !blocked.has(row.id) && !blocked.has(row.reference) : !blocked.has(row.target));
+const allowedSync = (row, blocked) => row.kind !== 'phoneSnapshot' && !xSideStory(row) && row.sync !== false && (row.kind === 'post' ? !blocked.has(row.id) && !blocked.has(row.reference) : !blocked.has(row.target));
 
 async function pendingSyncEvents(ledger, scope, trail, limit = 35, onlyReveals = false) {
     const blocked = await blockedPostSync(ledger, scope, trail);
@@ -1551,6 +1553,13 @@ function sections(text) {
 
 const BUILTIN_SECTIONS = new Map(sections(DEFAULT_PRESET).map(part => [part.key, part.text]));
 
+const PREVIOUS_X_PROMPT = `[TWITTER]
+账号可为匿名小号、私人账号、创作号、情绪树洞或成人向审美账号；ID 根据人物风格生成并保持稳定。
+可写深夜放飞、私人碎碎念、性感穿搭、暧昧玩笑、亲密话题、大胆自我展示、私人审美、情绪宣泄、犀利吐槽和粉丝互动。线上表达可以更大胆、直接或放松，不写普通行程流水账，不强制围绕玩家。
+每条通常 1—2 句，允许俚语、双关、emoji 和调侃。批量内容可纯文字、图文混合、连续话题或独立短帖，避免同义重复。
+配图说明主体、服装、姿势、表情、构图、环境和光线。互动可欣赏、玩梗、追问、质疑及作者回复，不机械制造高热度。
+番外内容不作为正文依据，不改变原有性格、关系及剧情记忆；需要正文同步时遵循实际剧情。`;
+
 const PLATFORM_RULES = Object.freeze({
     "朋友圈": {
         summary: "熟人生活、随手记录、好友互动",
@@ -1592,13 +1601,40 @@ const PLATFORM_RULES = Object.freeze({
 回帖可认真解答、质疑真实性、分享经历、催更、玩梗、跑题、争论及楼主回复；不同楼层不强行达成共识。匿名讨论不自动暴露现实身份和私人关系，番外内容不当作正文事实。`,
     },
     "X": {
-        summary: "匿名小号、私人表达、审美与短帖互动",
+        summary: "成年角色的成人向小号与番外短帖",
         text: `[TWITTER]
-账号可为匿名小号、私人账号、创作号、情绪树洞或成人向审美账号；ID 根据人物风格生成并保持稳定。
-可写深夜放飞、私人碎碎念、性感穿搭、暧昧玩笑、亲密话题、大胆自我展示、私人审美、情绪宣泄、犀利吐槽和粉丝互动。线上表达可以更大胆、直接或放松，不写普通行程流水账，不强制围绕玩家。
-每条通常 1—2 句，允许俚语、双关、emoji 和调侃。批量内容可纯文字、图文混合、连续话题或独立短帖，避免同义重复。
-配图说明主体、服装、姿势、表情、构图、环境和光线。互动可欣赏、玩梗、追问、质疑及作者回复，不机械制造高热度。
-番外内容不作为正文依据，不改变原有性格、关系及剧情记忆；需要正文同步时遵循实际剧情。`,
+【Twitter / X 生成规则】（色情向·网黄号）
+
+基础设定
+- 账号定位：网黄号 / 成人内容账号（可匿名、可半公开），仅适用于明确成年的角色。ID 根据角色人设自然推断并保持稳定。
+- 内容范围：番外小剧场。独立于正文，不影响正文性格、关系与剧情记忆。不得作为正文参考。
+- 每条推文必须与性相关，大胆、直白、色情。禁止生成普通日常、行程、无性暗示的内容。
+- 语气与行为根据角色性格决定，但即使是冷淡、高冷、克制型，在这个账号上也可以大胆开放、露骨表达（这是“放飞账号”的设定）。
+- 每条通常 1–2 句，允许俚语、双关、脏话、emoji、调侃。语言必须直白，不绕弯、不含蓄暗示。
+
+内容方向（随机或自由组合，不要固定模板）
+模型可自行决定当下发什么，优先从以下方向中自然选择或混合：
+- 做爱实录（正在做 / 刚做完，谁和谁、体位、连接处、体液、声音、边做边发）
+- 床评 / 事后吐槽（评价最近一次性爱，具体到体位、尺寸、次数、谁先去、余韵）
+- 擦边与渐进（性暗示 + 双关，或越发越大胆）
+- 露骨直发（直接描述裸照 / 身体部位 / 液体 / 红印）
+- 深夜放飞（凌晨时段，比平时更无所顾忌）
+- 事后状态（刚高潮 / 刚射完的余韵、身体反应）
+- 对粉丝的露骨互动、评论门槛（“评论解锁无码”“想看就说”等）
+- 自慰过程、边做边拍、对{{user}}的隐晦提及（粉丝不知道是谁）
+- 用 emoji 直接代替文字（🍆💦🫦🥵 等）
+
+配图规则
+- 有图时必须同时生成英文提示词，每张图分别填入自己的 fields.prompt。
+- 图片描述要直接使用身体词汇：乳房 / 乳头 / 鸡巴 / 穴 / 全裸 / 液体 / 红印 等。
+- 写清楚：身体状态 + 姿势 + 表情/脸 + 是否打码 + 光线 + 环境。
+- 配图风格可随机或按节奏变化：重磅露骨、渐进大胆、纯文字、擦边夹全裸混合。
+
+其他细节
+- 性别表达：女性侧重高潮，男性侧重射精及相关反应。
+- 互动数据：内容越露骨，模拟点赞/转发/评论可适当更高。
+- 批量生成时可连续话题、独立短帖、图文混合，避免同义重复。
+- 保持角色特色的同时，允许在这个账号里更放松、更色情、更直白。`,
     },
 });
 
@@ -1640,7 +1676,7 @@ function cleanPlatformPrompts(input, strict = false) {
             continue;
         }
         const text = value.trim();
-        if (text && text !== PLATFORM_RULES[name].text && text !== LEGACY_SOCIAL_DEFAULTS.platforms[name]) result[id] = text;
+        if (text && text !== PLATFORM_RULES[name].text && text !== LEGACY_SOCIAL_DEFAULTS.platforms[name] && !(id === 'x' && text === PREVIOUS_X_PROMPT)) result[id] = text;
     }
     return result;
 }
@@ -1655,6 +1691,7 @@ const postCounts = platform => platform === 'X' ? [5, 6, 7] : [1, 3, 5];
 
 function phonePrompt(text, { enabled, post, commentsOnly = false, group, platform = '朋友圈', postCount = 1, commonPrompt = SOCIAL_COMMON_PROMPT, platformPrompts = {} }) {
     const parts = enabled ? sections(text) : [];
+    const xPost = post && platform === 'X';
     const selected = ['CORE', ...(post ? ['SOCIAL'] : ['CHAT', ...(group ? ['GROUP'] : [])]), 'OUTPUT'];
     const blocks = selected.map(name => {
         const blocks = parts.filter(part => MODULES[part.key] === name && !(post && part.key === 'SOCIAL_LIFE' && part.text.replace(/\r\n/g, '\n') === BUILTIN_SECTIONS.get(part.key))).map(part => part.text);
@@ -1667,10 +1704,10 @@ function phonePrompt(text, { enabled, post, commentsOnly = false, group, platfor
             if (commentsOnly) return '【OUTPUT】\n仅为指定原帖生成 15–40 条有差异的模拟评论，不代替玩家发言，不复述或新建主帖。仅输出 JSON：{"comments":[{"id":"reader_1","nickname":"自然昵称","text":"评论正文","quote":"所回复内容（可选）","postedAt":"评论剧情时间（可选）"}]}。每条最多 500 字，只依据原帖已公开的信息互动，不泄露私聊或后来剧情。朋友圈限合理熟人，不虚构陌生路人。不能把示例当成实际评论；不输出分析、Markdown 或 HTML。';
             if (post) blocks.push(SOCIAL_IMAGE_PROTOCOL);
             const batch = post && postCount > 1;
-            const interactionProtocol = post ? `${platform === 'X' ? '账号写入 payload.handle，@ 后使用 1–15 位英文字母、数字或下划线。' : ''}${SOCIAL_TIME_RULE}评论互动写入各条 payload.comments 数组，元素为 {id:稳定的账号ID,nickname:昵称,text:评论正文,quote:所回复内容（可选）,postedAt:评论时间（可选）}。最多每帖 40 条，每条不超过 500 字；主帖正文不重复罗列评论。不生成玩家的评论。只输出本应用 JSON 数据，不输出 HTML、CSS 或脚本。互动数以实际生成的记录为准，不另外捏造统计字段。` : '';
+            const interactionProtocol = post ? `${xPost ? '账号写入 payload.handle，@ 后使用 1–15 位英文字母、数字或下划线，同一角色沿用已提供的账号。' : ''}${SOCIAL_TIME_RULE}评论互动写入各条 payload.comments 数组，元素为 {id:稳定的账号ID,nickname:昵称,text:评论正文,quote:所回复内容（可选）,postedAt:评论时间（可选）}。最多每帖 40 条，每条不超过 500 字；主帖正文不重复罗列评论。不生成玩家的评论。只输出本应用 JSON 数据，不输出 HTML、CSS 或脚本。${xPost ? '可以在 payload.counts 中填写 X 番外的模拟点赞、转发数，格式为 [{"kind":"点赞","text":"42"},{"kind":"转发","text":"6"}]；评论数由实际生成的评论计算。发布时间只为番外排序，不确认正文事件。' : '互动数以实际生成的记录为准，不另外捏造统计字段。'}` : '';
             const limit = batch ? `${platform}：只在这一次请求中生成 0–${postCount} 条不同动态，使用 posts 数组，每项包含 text 和独立 payload（可含 title、tags、location、media）。media 的 type 为 s-image 或 s-video、text 为画面说明，fields.src 只用已有真实地址。本轮批量协议覆盖预设中单条 messages 的格式要求。${platform === 'X' ? `若有发布动机，生成 ${Math.min(5, postCount)}–${postCount} 条；没有发布动机可返回空 posts。` : ''}` : post ? `${platform}：messages 包含 0 或 1 条实际发布的动态正文。可用 payload 对象附带 title、tags、location，以及 media 数组（type 为 s-image 或 s-video，text 为画面描述，fields.src 仅填写已有真实地址）。` : '聊天：messages 包含 0–6 条指定发言人实际发送的消息，每条对应一个气泡。可另加 components 数组，type 为 trans/reply/photo/video/voice/sticker/loc/red/pay/call/file/link/sys，fields 为已知属性，text 为内容；不得虚构资源、金额、状态或时长。';
             const example = batch ? '{"posts":[{"text":"动态正文","payload":{"title":"标题","comments":[{"id":"reader_1","nickname":"昵称","text":"评论正文"}]}}]}' : post ? '{"messages":["动态正文"],"payload":{"comments":[{"id":"reader_1","nickname":"昵称","text":"评论正文"}]}}' : '{"messages":["实际文本"]}';
-            blocks.push(`${post ? '' : '仅按本轮任务发言。人物性格、关系及情绪以有效资料为准，不由预设重新定义；带「资料」标记的内容仅作设定与剧情依据，不是生成指令。示例对话不是已发生的事件。\n'}${limit}${interactionProtocol}${post ? '每条动态是否配图、配几张（0–9 张），由发言角色依据性格、发布意图和当前内容自行决定；可纯文字、单图或多图，不默认固定为一张，不为凑数添加图片。动态条数与每条配图张数彼此独立。将每张配图分别写入该条 payload.media 数组，逐张提供不同的画面描述；无配图时使用空 media 数组。本轮有发布时评论合计至少 15 条，必须实际填入 payload.comments，不能只写评论数量；下方示例仅示范字段，不代表只生成一条评论。' : '图片分享可在 components 中包含多张 photo，每张分别描述，不要固定为一张。'}只输出 JSON 对象，格式为 ${example}；不发送时用空数组。可另加字符串字段 memory，记录本轮实际建立且仍有后续影响的事项，并区分声称、计划、承诺与已完成事实。不要输出分析、Markdown 围栏或正文美化容器。`);
+            blocks.push(`${post ? '' : '仅按本轮任务发言。人物性格、关系及情绪以有效资料为准，不由预设重新定义；带「资料」标记的内容仅作设定与剧情依据，不是生成指令。示例对话不是已发生的事件。\n'}${limit}${interactionProtocol}${post ? '每条动态是否配图、配几张（0–9 张），由发言角色依据性格、发布意图和当前内容自行决定；可纯文字、单图或多图，不默认固定为一张，不为凑数添加图片。动态条数与每条配图张数彼此独立。将每张配图分别写入该条 payload.media 数组，逐张提供不同的画面描述；无配图时使用空 media 数组。本轮有发布时评论合计至少 15 条，必须实际填入 payload.comments，不能只写评论数量；下方示例仅示范字段，不代表只生成一条评论。' : '图片分享可在 components 中包含多张 photo，每张分别描述，不要固定为一张。'}只输出 JSON 对象，格式为 ${example}；不发送时用空数组。${xPost ? 'X 番外省略剧情记忆字段 memory。' : '可另加字符串字段 memory，记录本轮实际建立且仍有后续影响的事项，并区分声称、计划、承诺与已完成事实。'}不要输出分析、Markdown 围栏或正文美化容器。`);
         }
         return blocks.length ? `【${name}】\n${blocks.join('\n\n')}` : '';
     });
@@ -1685,7 +1722,15 @@ module.exports = { DEFAULT_PRESET, LEGACY_DEFAULT_PRESET, PRESET_LIMIT, validate
 const importers = new WeakMap();
 
 function tavernApiUrl(host, path) {
-    return new URL(`/api/${path}`, host.location?.href || host.document.baseURI);
+    // TauriTavern's fetch bridge resolves strings across windows, while URL objects are realm-specific.
+    return new URL(`/api/${path}`, host.location?.href || host.document.baseURI).href;
+}
+
+async function fetchTavern(host, path, options) {
+    const ready = host.__TAURITAVERN__?.ready ?? host.__TAURITAVERN_MAIN_READY__;
+    if (ready) await ready;
+    options.signal?.throwIfAborted();
+    return host.fetch(tavernApiUrl(host, path), options);
 }
 
 function isHtmlResponse(response, text) {
@@ -1706,7 +1751,7 @@ async function loadModule(host, path) {
     }
 }
 
-module.exports = { loadModule, tavernApiUrl, isHtmlResponse };
+module.exports = { loadModule, fetchTavern, isHtmlResponse };
 
 },
 "./api-profiles.cjs": function(module,exports,require){
@@ -2427,7 +2472,7 @@ module.exports = { DEFAULTS, phoneSettings, normalizeOutput, loadModule, basePeo
 "./api.cjs": function(module,exports,require){
 const { clip, newId } = require('./domain.cjs');
 const { loadModule, normalizeOutput } = require('./context.cjs');
-const { tavernApiUrl, isHtmlResponse } = require('./host.cjs');
+const { fetchTavern, isHtmlResponse } = require('./host.cjs');
 
 const OUTPUT_KEYS = ['max_tokens', 'max_completion_tokens', 'max_output_tokens', 'max_new_tokens', 'max_length', 'n_predict', 'num_predict', 'max_tokens_to_generate'];
 function clearOutputLimit(data) {
@@ -2576,6 +2621,7 @@ class Transport {
                 if (!output && config.chat_completion_source !== 'claude') clearOutputLimit(data);
                 if (!models) { data.stream = false; delete data.tools; delete data.tool_choice; delete data.stop; }
             }
+            if (!models && (this.host.__TAURITAVERN__ || this.host.__TAURITAVERN_MAIN_READY__)) data.type = 'quiet';
             controller.signal.throwIfAborted();
             try {
                 return await this.request(context, `chat-completions/${models ? 'status' : 'generate'}`, data, controller.signal, models, onProgress);
@@ -2584,7 +2630,7 @@ class Transport {
                 return await this.directModels(data.custom_url, token, controller.signal, error);
             }
         } catch (error) {
-            if (controller.signal.aborted) throw new Error('手机请求已取消');
+            if (controller.signal.aborted || error.name === 'AbortError') throw new Error('手机请求已取消');
             if (error instanceof TypeError) throw new Error('无法连接酒馆服务器或响应格式异常');
             throw error;
         } finally { if (this.job === job) this.job = null; }
@@ -2609,7 +2655,7 @@ class Transport {
     async request(context, endpoint, data, signal, models, onProgress) {
         const headers = new Headers(context.getRequestHeaders());
         headers.set('Content-Type', 'application/json');
-        const response = await this.host.fetch(tavernApiUrl(this.host, `backends/${endpoint}`), {
+        const response = await fetchTavern(this.host, `backends/${endpoint}`, {
             method: 'POST', mode: 'same-origin', credentials: 'same-origin', headers, body: JSON.stringify(data), signal,
         });
         let raw;
@@ -2632,6 +2678,7 @@ class Transport {
         if (!response.ok || result?.error) throw new Error(failureMessage(result, response.status, models));
         if (result == null) throw new Error('API 响应既不是有效 JSON，也不是可识别的流式数据；未写入手机。');
         if (models) return modelList(result);
+        if (result?.choices?.[0]?.finish_reason === 'length') throw new Error('模型回复达到输出 Token 上限，未保存截断的内容。');
         const value = result?.choices?.[0]?.message?.content ?? result?.choices?.[0]?.text ?? result?.content ?? result?.response ?? context.extractMessageFromData?.(result, 'openai');
         const content = Array.isArray(value) ? value.map(part => typeof part === 'string' ? part : part?.text ?? '').join('') : value;
         if (typeof content !== 'string' || !content || result?.error) throw new Error(models ? '该模型服务未返回可读的模型列表，可手动填写模型' : '模型服务未返回文本。请查看酒馆服务器状态。');
@@ -2667,9 +2714,18 @@ function socialPayload(payload) {
 }
 
 function parseReply(text, mode, count = 1) {
-    const cleaned = String(text).trim().replace(/^```(?:json)?\s*|\s*```$/gi, '').trim();
+    let cleaned = String(text).trim().replace(/^(?:<(think|thinking|reasoning)>[\s\S]*?<\/\1>\s*)+/i, '');
     let result;
-    try { result = JSON.parse(cleaned); } catch { throw new Error('回复不是手机预设要求的 JSON；未把它写入剧情，可重试'); }
+    try { result = JSON.parse(cleaned); } catch {
+        const fences = [...cleaned.matchAll(/```(?:json)?[ \t]*\r?\n?([\s\S]*?)```/gi)];
+        const first = cleaned.indexOf('{');
+        const last = cleaned.lastIndexOf('}');
+        if (!/^[\[{]/.test(cleaned)) {
+            if (fences.length === 1) cleaned = fences[0][1].trim();
+            else if (!fences.length && first >= 0 && last > first && !cleaned.includes('```')) cleaned = cleaned.slice(first, last + 1);
+        }
+        try { result = JSON.parse(cleaned); } catch { throw new Error('回复不是手机预设要求的 JSON；未把它写入剧情，可重试'); }
+    }
     if (mode === 'comments') {
         const comments = socialPayload({ comments: result?.comments ?? result?.payload?.comments })?.comments;
         if (!comments?.length) throw new Error('本次未返回评论，原帖保留；不会自动追加请求。');
@@ -2700,7 +2756,7 @@ module.exports = { Transport, connection, parseReply, modelList, streamReply, fi
 "./resources.cjs": function(module,exports,require){
 const { digest } = require('./domain.cjs');
 const { worldbook, regexes, socialRegexes } = require('./bundled.cjs');
-const { loadModule, tavernApiUrl, isHtmlResponse } = require('./host.cjs');
+const { loadModule, fetchTavern, isHtmlResponse } = require('./host.cjs');
 
 const fingerprint = value => {
     const sort = item => Array.isArray(item) ? item.map(sort) : item && typeof item === 'object' ? Object.fromEntries(Object.keys(item).sort().map(key => [key, sort(item[key])])) : item;
@@ -2746,7 +2802,7 @@ function planResources(current, originals, records, mode, regex = false) {
 class Resources {
     constructor(host, helper, context, loadNative = path => loadModule(host, path)) { Object.assign(this, { host, helper, context, loadNative }); }
     async request(path, body) {
-        const response = await this.host.fetch(tavernApiUrl(this.host, path), { method: 'POST', mode: 'same-origin', headers: this.context.getRequestHeaders(), body: JSON.stringify(body) });
+        const response = await fetchTavern(this.host, path, { method: 'POST', mode: 'same-origin', headers: this.context.getRequestHeaders(), body: JSON.stringify(body) });
         const text = await response.text();
         if ((response.ok && isHtmlResponse(response, text)) || [404, 405].includes(response.status)) {
             const error = new Error(`酒馆接口 ${path} 返回了网页或不可用（HTTP ${response.status}）。请刷新酒馆页面后重试。`);
@@ -2817,6 +2873,8 @@ const { regexes } = require('./bundled.cjs');
 const STICKERS = Object.fromEntries([...regexes.map(entry => entry.replaceString).join('\n').matchAll(/\.im-sticker\[data-name="([^"]+)"\]\{background-image:url\("(https?:\/\/[^"\s]+)"\)/g)].map(match => [match[1], match[2]]));
 const PLATFORMS = { moments: '朋友圈', redbook: '小红书', douyin: '抖音', weibo: '微博', forum: '论坛', x: 'X' };
 const platformId = value => ['Twitter', '推特', 'twitter', 'X'].includes(value) ? 'x' : Object.keys(PLATFORMS).find(key => key === value || PLATFORMS[key] === value) || 'moments';
+const xSideStory = row => row?.thread === 'x' && row.payload?.sideStory === true;
+const xHandle = value => typeof value === 'string' && /^@[A-Za-z0-9_]{1,15}$/.test(value) ? value : '';
 const safeUrl = value => { try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : ''; } catch { return ''; } };
 function mediaData(body, attrs, entities) {
     const text = value => entities(String(value ?? '').replace(/<[^>]*>/g, '')).trim();
@@ -2848,14 +2906,14 @@ function notificationRows(rows, prefs, player) {
     return rows.filter(row => row.speakerId !== player && row.stamp > cleared && !prefs?.muted?.includes(row.thread));
 }
 
-module.exports = { STICKERS, PLATFORMS, platformId, safeUrl, mediaData, socialData, reactions, notificationRows };
+module.exports = { STICKERS, PLATFORMS, platformId, xSideStory, xHandle, safeUrl, mediaData, socialData, reactions, notificationRows };
 
 },
 "./cloud.cjs": function(module,exports,require){
 const { digest } = require('./domain.cjs');
 const { fingerprint } = require('./resources.cjs');
 const { backupState, stateHashes, mergeBackupData } = require('./portable.cjs');
-const { tavernApiUrl, isHtmlResponse } = require('./host.cjs');
+const { fetchTavern, isHtmlResponse } = require('./host.cjs');
 
 const FIELD = 'tavern_pocket_v1';
 function mergeEvents(local, remote) {
@@ -2911,7 +2969,7 @@ class Cloud {
         const context = session.context;
         if (context.groupId) throw new Error('群聊云端元数据保存尚未适配；可使用本地账本导出恢复。');
         const file = String(context.getCurrentChatId()).replace(/\.jsonl$/, '');
-        const response = await this.host.fetch(tavernApiUrl(this.host, 'chats/get'), {
+        const response = await fetchTavern(this.host, 'chats/get', {
             method: 'POST', mode: 'same-origin', headers: context.getRequestHeaders(), body: JSON.stringify({ avatar_url: context.characters[context.characterId].avatar, file_name: file }),
         });
         if (!response.ok) throw new Error(`云端回读失败 HTTP ${response.status}`);
@@ -2994,6 +3052,15 @@ function cardJson(text) {
     } catch { return null; }
 }
 
+function styleUpdate(previous, next) {
+    if (!record(previous) || !record(next)) return next;
+    const removed = Object.keys(previous).filter(key => !Object.hasOwn(next, key) && !['__proto__', 'constructor', 'prototype'].includes(key));
+    return Object.fromEntries([
+        ...removed.map(key => [key, '__@@UNSET@@__']),
+        ...Object.entries(next).map(([key, value]) => [key, styleUpdate(previous[key], value)]),
+    ]);
+}
+
 class CardStyles {
     constructor(ledger, account) { Object.assign(this, { ledger, account, cache: new Map() }); }
     key(card) { return `card-style:${this.account}:${card.avatar}`; }
@@ -3058,7 +3125,8 @@ class CardStyles {
             const before = await read();
             if (!record(before?.data)) throw new Error('酒馆未返回当前角色卡数据，无法保存绑定。');
             assertTarget();
-            await resources.request('characters/merge-attributes', { avatar: target, data: { extensions: { [STYLE_FIELD]: payload } } });
+            const patch = styleUpdate(before.data.extensions?.[STYLE_FIELD], payload);
+            await resources.request('characters/merge-attributes', { avatar: target, data: { extensions: { [STYLE_FIELD]: patch } } });
             const saved = await read();
             if (fingerprint(saved?.data?.extensions?.[STYLE_FIELD] ?? null) !== fingerprint(payload)) throw new Error('绑定内容回读不一致，请重新检查角色卡。');
             const active = currentCard();
@@ -4472,7 +4540,7 @@ const css = require('./style.cjs');
 const { PLAYER, label, threadKey, digest, socialNickname } = require('./domain.cjs');
 const { photoSource } = require('./photos.cjs');
 const { PLATFORM_RULES, postCounts, SOCIAL_COMMON_PROMPT } = require('./phone-preset.cjs');
-const { STICKERS, PLATFORMS, safeUrl, reactions, notificationRows } = require('./media.cjs');
+const { STICKERS, PLATFORMS, safeUrl, reactions, notificationRows, xHandle, xSideStory } = require('./media.cjs');
 const { PAGES, WALLPAPERS, BACKGROUNDS, backgroundStyle } = require('./backgrounds.cjs');
 const { MusicIsland } = require('./music-island.cjs');
 const { MusicApp } = require('./music-app.cjs');
@@ -4794,9 +4862,8 @@ class Phone {
         this.wandEntry = this.el('div', 'list-group-item flex-container flexGap5 interactable');
         this.wandEntry.id = 'tavern-pocket-menu';
         this.wandEntry.tabIndex = 0; this.wandEntry.setAttribute('role', 'button');
-        const icon = this.icon('phone');
-        Object.assign(this.wandEntry.style, { display: 'flex', alignItems: 'center', gap: '8px' });
-        Object.assign(icon.style, { width: '1.1em', height: '1.1em', flexShrink: '0' });
+        const icon = this.el('div', 'fa-fw fa-solid fa-mobile-screen-button extensionsMenuExtensionButton');
+        icon.setAttribute('aria-hidden', 'true');
         this.wandEntry.append(icon, this.el('span', '', 'Selene手机'));
         const reveal = event => {
             event.preventDefault();
@@ -6039,6 +6106,7 @@ class Phone {
     }
 
     postSyncPanel(state, post, update) {
+        if (xSideStory(post)) return this.small('X 番外 · 仅在 X 内展示');
         const enabledFor = current => postSyncEnabled(post, this.settings, current?.prefs);
         const enabled = enabledFor(state);
         const toggle = this.input('checkbox', enabled); toggle.setAttribute('aria-label', '正文同步'); toggle.setAttribute('role', 'switch');
@@ -6223,7 +6291,7 @@ class Phone {
         const tab = this.feedTabs.get('x') || 'all';
         const people = new Map(state.people.map(person => [person.id, person]));
         const has = (post, kind) => reactions(state.rows, post, kind).some(row => row.speakerId === PLAYER);
-        const handle = post => /^@[A-Za-z0-9_]{1,15}$/.test(post.payload?.handle || '') ? post.payload.handle : `@user_${digest(post.speakerId).replace(/[^A-Za-z0-9_]/g, '').slice(0, 8)}`;
+        const handle = post => xHandle(post.payload?.handle) || `@user_${digest(post.speakerId).replace(/[^A-Za-z0-9_]/g, '').slice(0, 8)}`;
         const changeTab = value => {
             this.feedTabs.set('x', value); this.render(this.state);
             const timeline = this.content.querySelector('.x-timeline'); if (timeline) timeline.scrollTop = 0;
@@ -6236,6 +6304,12 @@ class Phone {
             this.button(has(post, 'follow') ? '取消关注' : '关注', async () => { if (await this.action('follow', { id: post.id })) this.closeDialog(); }, 'outline'),
             ...state.rows.filter(row => row.kind === 'post' && row.speakerId === post.speakerId).map(row => this.el('p', 'post-text', row.text))));
         for (const post of posts) {
+            const sideStory = xSideStory(post);
+            const counts = sideStory && Array.isArray(post.payload.counts) ? post.payload.counts : [];
+            const simulatedCount = kind => {
+                const value = counts.find(entry => entry?.kind === kind)?.text;
+                return typeof value === 'string' && /^\d{1,7}$/.test(value) ? Number(value) : 0;
+            };
             const replies = state.rows.filter(row => row.kind === 'comment' && (row.target === post.id || post.reference && row.target === post.reference)).reverse();
             const card = this.el('article', 'x-post'); card.dataset.search = `${post.speaker} ${handle(post)} ${post.text} ${post.payload?.title || ''}`;
             const avatar = this.button('', () => authorProfile(post), 'x-avatar', `${post.speaker}的主页`); avatar.append(this.avatar(people.get(post.speakerId) || { name: post.speaker }));
@@ -6243,7 +6317,7 @@ class Phone {
             const menu = () => this.dialog('帖子操作', this.el('div', 'form',
                 this.button(has(post, 'follow') ? '取消关注作者' : '关注作者', async () => { if (await this.action('follow', { id: post.id })) this.closeDialog(); }, 'outline'),
                 this.postSyncPanel(state, post, async enabled => { if (await this.action('toggleSync', { id: post.id, enabled })) this.closeDialog(); }),
-                this.button('转发给角色 / 群聊', () => this.forwardEditor(this.state, post), 'outline'), this.button('删除帖子', () => this.deleteSocial(post), 'outline danger')));
+                sideStory ? null : this.button('转发给角色 / 群聊', () => this.forwardEditor(this.state, post), 'outline'), this.button('删除帖子', () => this.deleteSocial(post), 'outline danger')));
             const header = this.el('div', 'x-post-head', this.button(post.speaker, () => authorProfile(post), 'x-author-name'), this.el('span', 'x-handle', handle(post)), this.el('span', 'x-time', `· ${time}`), this.iconButton('more', 'X 帖子更多操作', menu));
             header.querySelector('.x-time').title = time;
             const content = this.el('div', 'x-post-content', header, this.el('p', 'x-post-text', post.text));
@@ -6269,10 +6343,11 @@ class Phone {
             };
             content.append(this.el('div', 'x-post-actions',
                 metric('messages', '评论 X 帖子', () => this.commentEditor(post), replies.length),
-                metric('sync', '转发给联系人', () => this.forwardEditor(this.state, post)),
-                metric('heart', '点赞 X 帖子', () => this.action('like', { id: post.id }), reactions(state.rows, post, 'like').length, has(post, 'like'), 'x-like'),
+                sideStory ? metric('sync', '在 X 内转发', () => this.action('repost', { id: post.id }), simulatedCount('转发') + reactions(state.rows, post, 'repost').length)
+                    : metric('sync', '转发给联系人', () => this.forwardEditor(this.state, post)),
+                metric('heart', '点赞 X 帖子', () => this.action('like', { id: post.id }), simulatedCount('点赞') + reactions(state.rows, post, 'like').length, has(post, 'like'), 'x-like'),
                 metric('bookmark', '收藏 X 帖子', () => this.action('collect', { id: post.id }), undefined, has(post, 'collect'), 'x-bookmark'),
-                metric('share', '分享 X 动态', () => this.forwardEditor(this.state, post))));
+                sideStory ? null : metric('share', '分享 X 动态', () => this.forwardEditor(this.state, post))));
             if (replies.length) {
                 const expanded = this.xExpanded.has(post.id);
                 const toggle = this.button(expanded ? '收起回复' : `查看 ${replies.length} 条回复`, () => {
@@ -6484,21 +6559,23 @@ class Phone {
         const styleHint = this.small(`${PLATFORMS[platform]}：${this.settings.platformPrompts?.[platform]?.trim() ? '使用自定义平台提示词' : PLATFORM_RULES[PLATFORMS[platform]]?.summary || ''} · 可含一年前的历史动态 · 配图由角色决定`);
         const apiHint = this.small(`AI 使用：${profile?.name || '默认连接'} · 多条动态也只发送一次请求 · 可在设置 → 各平台 API 中分别配置`);
         const inject = this.input('checkbox', this.settings.socialSync?.[platform] === true);
+        const syncField = this.el('label', 'field switch', '将这条内容注入下一轮正文', inject);
         const submit = this.button('', () => {
             this.closeDialog();
-            this.action(method.value === 'ai' ? 'postActor' : 'post', { actor: actor.value, count: Number(count.value), text: text.value, platform, inject: inject.checked,
+            this.action(method.value === 'ai' ? 'postActor' : 'post', { actor: actor.value, count: Number(count.value), text: text.value, platform, inject: !syncField.hidden && inject.checked,
                 payload: { title: title.value, tags: tags.value, media: media.value.split('\n').map(text => text.trim()).filter(Boolean).slice(0, 9).map(text => ({ type: platform === 'douyin' && !safeUrl(text) ? 's-video' : 's-image', text: safeUrl(text) ? '图片' : text, ...(safeUrl(text) ? { fields: { src: safeUrl(text) } } : {}) })) }, public: scope.value === 'all', members: checks.selected() });
         }, 'primary');
         const update = () => {
             const ai = method.value === 'ai';
             countField.hidden = apiHint.hidden = styleHint.hidden = actor.hidden = !ai;
+            syncField.hidden = ai && platform === 'x';
             for (const field of [title, tags, media]) field.hidden = ai;
             text.placeholder = ai ? '想看什么动态？也可写“一年前的旅行记录”等时间要求（可选）' : '记录此刻真实发生的事';
             submit.textContent = ai ? `AI 生成并发布（最多 ${count.value} 条）` : '发布';
             submit.disabled = ai && !actor.value;
         };
         method.onchange = update; count.onchange = update; update();
-        this.dialog(`发布到${PLATFORMS[platform]}`, this.el('div', 'form post-editor', method, actor, countField, styleHint, apiHint, title, text, media, tags, scope, checks.node, this.el('label', 'field switch', '将这条内容注入下一轮正文', inject), submit));
+        this.dialog(`发布到${PLATFORMS[platform]}`, this.el('div', 'form post-editor', method, actor, countField, styleHint, apiHint, title, text, media, tags, scope, checks.node, syncField, submit));
     }
 
     regeneratePostImages(post) {
@@ -7010,7 +7087,7 @@ class Phone {
         form.append(this.heading('设置', 'PREFERENCES'), this.settingsGroup('连接与模型', '生成通路、API 和模型参数', 'wifi', field('apiMode', '生成通路', 'choice', [['tavern', '酒馆当前连接'], ['custom', '独立 OpenAI 兼容 API']]),
             field('base', '独立 Base URL'), field('secret', '独立 API 密钥（持久保存）', 'password'), modelPicker, this.el('div', 'settings-model-row', modelField, this.button('拉取模型', async () => { if ((await this.flushAutosaves()).every(Boolean)) await this.action('models'); }, 'outline')), profileControls,
             field('streaming', '独立 API 流式接收', 'checkbox'), this.small('逐步接收以减轻网关等待；完整结构化回复接收成功后才显示和写入账本。连接测试成功只代表短请求可用。'),
-            field('temperature', '独立温度', 'number'), field('output', '手机最大输出 Token（0＝不额外限制）', 'number'), this.small('默认不发送输出上限，由服务商决定。可填写任意有效正整数；要求明确上限的原生服务沿用当前连接设置。'), this.el('div', 'actions', this.button('测试连接', async () => { await this.flushAutosaves(); this.action('test'); }, 'outline'), this.button('清除当前密钥', () => this.action('settings', { secret: '' }), 'link')),
+            field('temperature', '独立温度', 'number'), field('output', '手机最大输出 Token（0＝不额外限制）', 'number'), this.small('默认不发送输出上限，由服务商决定。可填写任意有效正整数；要求明确上限的原生服务沿用当前连接设置。'), this.el('div', 'actions', this.button('测试连接', async () => { if ((await this.flushAutosaves()).every(Boolean)) await this.action('test'); }, 'outline'), this.button('清除当前密钥', () => this.action('settings', { secret: '' }), 'link')),
             this.small('连接测试会发一个不含剧情的短请求。模型列表不请求生成。密钥保存在当前酒馆账号的浏览器存储中，刷新或更新脚本后保留；不进入剧情、聊天备份或提示词。')),
             platformApiGroup, platformPromptGroup,
             this.settingsGroup('生图设置', '跟随酒馆、独立 API 与自定义代理', 'imagegen', this.button('打开生图设置', () => this.imageSettingsPanel(), 'outline'), this.small('连接、画风、画面规则与角色参考在此管理；密钥独立保存在本机。')),
@@ -7194,7 +7271,7 @@ const { portablePhone, portableSettings } = require('./portable.cjs');
 const { Photos, photoSource, photoSources } = require('./photos.cjs');
 const { ImageService, namedReferences } = require('./image-service.cjs');
 const { CardStyles, STYLE_KEYS, styleValues, boundStyle } = require('./card-style.cjs');
-const { PLATFORMS, platformId, safeUrl } = require('./media.cjs');
+const { PLATFORMS, platformId, safeUrl, xHandle, xSideStory } = require('./media.cjs');
 const { profileValues, saveProfile, cleanCredentials, generationConnection } = require('./api-profiles.cjs');
 const { PAGES, cleanBackground, selectBackground, backgroundStyle } = require('./backgrounds.cjs');
 const { Wallpapers, wallpaperImage } = require('./wallpapers.cjs');
@@ -7508,7 +7585,7 @@ function start(frame) {
         host.setTimeout(() => { if (downloads.delete(url)) host.URL.revokeObjectURL(url); }, 10000);
     }
 
-    async function insert(session, inputs, extra = []) {
+    async function insert(session, inputs, extra = [], meta = []) {
         if (!session?.valid()) throw new Error('聊天或有效分支已变化，未保存');
         const existing = await ledger.query(session.scope, { limit: 1 });
         if (!session.valid()) throw new Error('聊天或有效分支已变化，未保存');
@@ -7517,9 +7594,9 @@ function start(frame) {
         const stamp = Math.max(Date.now(), (existing.rows[0]?.stamp || 0) + 1);
         const rows = inputs.map((input, index) => makeEvent(session.scope, session.trail, { rpTime: session.rpTime, ...input }, session.people, { stamp: stamp + index,
             ...(['post', 'comment'].includes(input.kind) ? { speaker: socialNickname(session.people.find(person => person.id === input.speakerId), settings) || input.speaker } : {}),
-            ...input.extra, sync: settings.sync !== 'off' && (['comment', 'like', 'collect', 'repost', 'follow'].includes(input.kind) && typeof prefs.postSync?.[input.target] === 'boolean' ? prefs.postSync[input.target] : typeof input.extra?.sync === 'boolean' ? input.extra.sync : ['message', 'call'].includes(input.kind || 'message') || settings.socialSync[input.thread || 'moments'] === true) }));
+            ...input.extra, sync: !xSideStory(input) && settings.sync !== 'off' && (['comment', 'like', 'collect', 'repost', 'follow'].includes(input.kind) && typeof prefs.postSync?.[input.target] === 'boolean' ? prefs.postSync[input.target] : typeof input.extra?.sync === 'boolean' ? input.extra.sync : ['message', 'call'].includes(input.kind || 'message') || settings.socialSync[input.thread || 'moments'] === true) }));
         if (rows.some(row => !row.text)) throw new Error('请输入消息内容');
-        await ledger.write([...rows, ...extra]);
+        await ledger.write([...rows, ...extra], meta);
         queueCloud(session);
         return rows;
     }
@@ -7529,7 +7606,7 @@ function start(frame) {
             const known = session.people.find(person => person.id !== PLAYER && (person.id === comment.id || person.name === comment.nickname));
             const identity = known?.id || `network:${post.thread}:${digest(comment.id)}`;
             return { kind: 'comment', speakerId: identity, participants: unique([identity, post.speakerId]), audience: post.audience, thread: post.thread, rpTime: comment.postedAt || '', text: comment.text, target: post.id, quote: comment.quote,
-                payload: { simulated: true, networkId: comment.id }, extra: { speaker: known?.name || comment.nickname, names: unique([known?.name || comment.nickname, post.speaker]), ...extra } };
+                payload: { simulated: true, networkId: comment.id, ...(xSideStory(post) ? { sideStory: true } : {}) }, extra: { speaker: known?.name || comment.nickname, names: unique([known?.name || comment.nickname, post.speaker]), ...extra } };
         });
     }
 
@@ -7549,6 +7626,11 @@ function start(frame) {
         running = preview ? '正在重建上下文…' : '正在等待回复…';
         phone.activity(running);
         try {
+            const xAccountKey = mode === 'post' && thread.id === 'x' ? `x-account:${account}:${actor.id}` : '';
+            const storedHandle = xAccountKey ? xHandle(await ledger.readMeta(xAccountKey)) : '';
+            const priorPosts = xAccountKey && !storedHandle ? await ledger.query(session.scope, { thread: 'x', limit: 1, accept: row => row.kind === 'post' && row.speakerId === actor.id && active(row, session.trail) && xHandle(row.payload?.handle) }) : null;
+            const knownHandle = storedHandle || xHandle(priorPosts?.rows[0]?.payload?.handle);
+            if (knownHandle) hint = [hint, `沿用此角色的 X 账号 ${knownHandle}。`].filter(Boolean).join('\n');
             const pack = await compose(session, thread, actor, mode, hint, recall, replace, count, targetPost);
             if (!session.valid() || job.cancelled) throw new Error('聊天已变化或请求已取消');
             prepared = { ...pack, scope: session.scope, anchor: before(session.trail) };
@@ -7573,6 +7655,7 @@ function start(frame) {
             }
             const outputs = result.posts || result.messages.map((text, index) => ({ text, payload: index === 0 ? result.payload : undefined, memory: index === 0 ? result.memory : '' }));
             if (!outputs.length) { setNotice(`${actor.name} 暂未${mode === 'post' ? '发布动态' : '发消息'}。`); return; }
+            const accountHandle = xAccountKey ? knownHandle || outputs.map(row => xHandle(row.payload?.handle)).find(Boolean) : '';
             const bubbleGroup = newId();
             const originals = replace ? (await ledger.query(session.scope, { thread: thread.id, limit: 8, accept: row => active(row, session.trail) && (row.bubbleGroup ? row.bubbleGroup === replace.bubbleGroup : row.id === replace.id) })).rows : [];
             if (originals.some(row => session.trail.byEvent.has(row.id))) throw new Error('该回复已交接到正文，不能重写旧事实。');
@@ -7580,11 +7663,13 @@ function start(frame) {
                 const id = newId();
                 const sync = mode === 'post' && typeof inject === 'boolean' ? { sync: inject } : {};
                 const comments = mode === 'post' ? payload?.comments || [] : [];
-                const postPayload = mode === 'post' && payload ? Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'comments')) : payload;
-                return [{ kind: mode === 'post' ? 'post' : 'message', speakerId: actor.id, participants: mode === 'post' ? [actor.id] : thread.members, audience: thread.members, thread: thread.id, rpTime: mode === 'post' ? payload?.postedAt || '' : session.rpTime, text, payload: postPayload, extra: { id, bubbleGroup, ...sync, suggestedMemory: memory } },
-                    ...commentInputs(session, { id, thread: thread.id, speakerId: actor.id, speaker: actor.name, audience: thread.members }, comments, { bubbleGroup, ...sync })];
+                let postPayload = mode === 'post' && payload ? Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'comments' && key !== 'sideStory')) : payload;
+                if (xAccountKey) postPayload = { ...postPayload, handle: accountHandle || '', sideStory: true };
+                return [{ kind: mode === 'post' ? 'post' : 'message', speakerId: actor.id, participants: mode === 'post' ? [actor.id] : thread.members, audience: thread.members, thread: thread.id, rpTime: mode === 'post' ? payload?.postedAt || '' : session.rpTime, text, payload: postPayload, extra: { id, bubbleGroup, ...sync, suggestedMemory: xAccountKey ? '' : memory } },
+                    ...commentInputs(session, { id, thread: thread.id, speakerId: actor.id, speaker: actor.name, audience: thread.members, payload: postPayload }, comments, { bubbleGroup, ...sync })];
             });
-            const savedRows = await insert(session, inputs, originals.map(row => ({ ...row, deleted: true, revision: row.revision + 1 })));
+            const accountUpdate = accountHandle && accountHandle !== storedHandle ? [{ key: xAccountKey, value: accountHandle }] : [];
+            const savedRows = await insert(session, inputs, originals.map(row => ({ ...row, deleted: true, revision: row.revision + 1 })), accountUpdate);
             if ((await images.load()).autoGenerate) job.autoCandidate = photoSources(savedRows).find(item => !item.url);
             if (mode !== 'post') {
                 try { await checkpoint(ledger, session, thread.id, row => accepts(session, row)); }
@@ -7912,7 +7997,7 @@ function start(frame) {
             const actor = session.people.find(person => person.id === post.speakerId) || { id: post.speakerId, name: post.speaker };
             const existing = await ledger.query(scope, { thread: post.thread, limit: Infinity, accept: row => row.kind === 'comment' && active(row, trail) && row.audience.includes(PLAYER) && (row.target === post.id || post.reference && row.target === post.reference) });
             const target = { id: post.id, author: post.speaker, text: post.text, postedAt: post.rpTime, payload: post.payload, existingComments: existing.rows.map(row => ({ nickname: row.speaker, text: row.text })) };
-            await generate({ session, thread: { id: post.thread, members: unique([actor.id, ...post.audience]) }, actor, mode: 'comments', targetPost: target, inject: session.prefs.postSync?.[post.id] ?? (post.origin === 'phone' ? post.sync !== false : settings.socialSync?.[post.thread] === true) });
+            await generate({ session, thread: { id: post.thread, members: unique([actor.id, ...post.audience]) }, actor, mode: 'comments', targetPost: target, inject: postSyncEnabled(post, settings, session.prefs) });
             return;
         }
         if (name === 'clearData') {
@@ -8042,6 +8127,7 @@ function start(frame) {
             const row = await ledger.get(scope, data.id);
             const target = session.threads.find(item => item.id === data.thread && item.members.includes(PLAYER));
             if (!row || !active(row, trail) || !row.audience.includes(PLAYER) || !target || !session.valid()) throw new Error('消息或目标会话不可用');
+            if (xSideStory(row)) throw new Error('X 番外仅保留在 X 应用内。');
             await insert(session, [{ kind: 'message', speakerId: PLAYER, participants: target.members, thread: target.id, text: clip(`转发 ${row.speaker} 的${PLATFORMS[row.thread] || '消息'}：${row.payload?.title || ''} ${row.text}`), payload: row.kind === 'post' ? { components: [{ type: 'link', text: row.text, fields: { postId: row.id, platform: row.thread, author: row.speaker, title: row.payload?.title || row.text.slice(0, 60), image: photoSource(row.payload?.media?.[0]?.fields?.src) } }] } : row.payload }]);
             setNotice('已转发到所选手机会话。'); return refresh();
         }
@@ -8103,6 +8189,7 @@ function start(frame) {
         } else if (['edit', 'delete', 'remember', 'retry', 'toggleSync'].includes(name)) {
             const row = await ledger.get(scope, data.id);
             if (!row || !session.valid() || !active(row, trail) || !row.audience.includes(PLAYER)) throw new Error('这条记录不在当前有效分支');
+            if (xSideStory(row) && ['toggleSync', 'remember'].includes(name)) throw new Error('X 番外仅保留在 X 应用内。');
             if (name === 'toggleSync' && row.kind === 'post') {
                 const prefs = await ledger.readMeta(`${scope}:prefs`) || {};
                 const enabled = typeof data.enabled === 'boolean' ? data.enabled : !postSyncEnabled(row, settings, prefs);
@@ -8134,7 +8221,8 @@ function start(frame) {
         } else if (['like', 'comment', 'collect', 'repost', 'follow'].includes(name)) {
             const post = await ledger.get(scope, data.id);
             if (!post || post.kind !== 'post' || !session.valid() || !active(post, trail) || !post.audience.includes(PLAYER)) throw new Error('该动态已不在当前可见范围');
-            const inject = session.prefs.postSync?.[post.id] ?? (post.origin === 'phone' ? post.sync !== false : settings.socialSync?.[post.thread] === true);
+            const inject = postSyncEnabled(post, settings, session.prefs);
+            const sideStory = xSideStory(post) ? { sideStory: true } : null;
             if (['like', 'collect', 'follow'].includes(name)) {
                 const latest = (await ledger.query(scope, { thread: post.thread, limit: 1, accept: row => row.kind === name && row.speakerId === PLAYER && active(row, trail) && (name === 'follow' ? row.participants.includes(post.speakerId) : row.target === post.id || post.reference && row.target === post.reference) })).rows[0];
                 if (latest?.origin === 'phone' && !trail.byEvent.has(latest.id)) {
@@ -8143,10 +8231,10 @@ function start(frame) {
                 }
                 const enabled = !latest || latest.payload?.reactionActive === false;
                 const text = enabled ? ({ like: '赞了这条动态', collect: '收藏了这条内容', follow: '关注了作者' })[name] : ({ like: '取消了对这条动态的赞', collect: '取消收藏了这条内容', follow: '取消关注了作者' })[name];
-                await insert(session, [{ kind: name, speakerId: PLAYER, participants: [PLAYER, post.speakerId], audience: name === 'collect' ? [PLAYER] : post.audience, thread: post.thread, text, target: post.id, quote: post.text, payload: { reactionActive: enabled }, extra: { sync: inject } }]);
+                await insert(session, [{ kind: name, speakerId: PLAYER, participants: [PLAYER, post.speakerId], audience: name === 'collect' ? [PLAYER] : post.audience, thread: post.thread, text, target: post.id, quote: post.text, payload: { reactionActive: enabled, ...sideStory }, extra: { sync: inject } }]);
             } else {
                 const text = name === 'repost' ? '转发了这条内容' : clip(data.text);
-                await insert(session, [{ kind: name, speakerId: PLAYER, participants: [PLAYER, post.speakerId], audience: post.audience, thread: post.thread, text, target: post.id, quote: data.quote || post.text, extra: { sync: inject } }]);
+                await insert(session, [{ kind: name, speakerId: PLAYER, participants: [PLAYER, post.speakerId], audience: post.audience, thread: post.thread, text, target: post.id, quote: data.quote || post.text, ...(sideStory ? { payload: sideStory } : {}), extra: { sync: inject } }]);
             }
         } else if (name === 'backup') {
             const backup = await cloud.backup(session);

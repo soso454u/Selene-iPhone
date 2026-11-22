@@ -1,7 +1,15 @@
 const importers = new WeakMap();
 
 function tavernApiUrl(host, path) {
-    return new URL(`/api/${path}`, host.location?.href || host.document.baseURI);
+    // TauriTavern's fetch bridge resolves strings across windows, while URL objects are realm-specific.
+    return new URL(`/api/${path}`, host.location?.href || host.document.baseURI).href;
+}
+
+async function fetchTavern(host, path, options) {
+    const ready = host.__TAURITAVERN__?.ready ?? host.__TAURITAVERN_MAIN_READY__;
+    if (ready) await ready;
+    options.signal?.throwIfAborted();
+    return host.fetch(tavernApiUrl(host, path), options);
 }
 
 function isHtmlResponse(response, text) {
@@ -22,4 +30,4 @@ async function loadModule(host, path) {
     }
 }
 
-module.exports = { loadModule, tavernApiUrl, isHtmlResponse };
+module.exports = { loadModule, fetchTavern, isHtmlResponse };

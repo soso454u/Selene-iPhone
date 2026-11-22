@@ -1,7 +1,7 @@
 {
   "name": "tavern-pocket",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "repository": { "type": "git", "url": "https://github.com/soso454u/Selene-iPhone.git" },
-  "scripts": { "build": "node scripts/build.cjs", "test": "node --test" }
+  "scripts": { "build": "node scripts/build.cjs", "test": "node --test test/*.test.cjs" }
 }

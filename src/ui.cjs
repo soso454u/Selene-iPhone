@@ -5,7 +5,7 @@ const css = require('./style.cjs');
 const { PLAYER, label, threadKey, digest, socialNickname } = require('./domain.cjs');
 const { photoSource } = require('./photos.cjs');
 const { PLATFORM_RULES, postCounts, SOCIAL_COMMON_PROMPT } = require('./phone-preset.cjs');
-const { STICKERS, PLATFORMS, safeUrl, reactions, notificationRows } = require('./media.cjs');
+const { STICKERS, PLATFORMS, safeUrl, reactions, notificationRows, xHandle, xSideStory } = require('./media.cjs');
 const { PAGES, WALLPAPERS, BACKGROUNDS, backgroundStyle } = require('./backgrounds.cjs');
 const { MusicIsland } = require('./music-island.cjs');
 const { MusicApp } = require('./music-app.cjs');
@@ -327,9 +327,8 @@ class Phone {
         this.wandEntry = this.el('div', 'list-group-item flex-container flexGap5 interactable');
         this.wandEntry.id = 'tavern-pocket-menu';
         this.wandEntry.tabIndex = 0; this.wandEntry.setAttribute('role', 'button');
-        const icon = this.icon('phone');
-        Object.assign(this.wandEntry.style, { display: 'flex', alignItems: 'center', gap: '8px' });
-        Object.assign(icon.style, { width: '1.1em', height: '1.1em', flexShrink: '0' });
+        const icon = this.el('div', 'fa-fw fa-solid fa-mobile-screen-button extensionsMenuExtensionButton');
+        icon.setAttribute('aria-hidden', 'true');
         this.wandEntry.append(icon, this.el('span', '', 'Selene手机'));
         const reveal = event => {
             event.preventDefault();
@@ -1572,6 +1571,7 @@ class Phone {
     }
 
     postSyncPanel(state, post, update) {
+        if (xSideStory(post)) return this.small('X 番外 · 仅在 X 内展示');
         const enabledFor = current => postSyncEnabled(post, this.settings, current?.prefs);
         const enabled = enabledFor(state);
         const toggle = this.input('checkbox', enabled); toggle.setAttribute('aria-label', '正文同步'); toggle.setAttribute('role', 'switch');
@@ -1756,7 +1756,7 @@ class Phone {
         const tab = this.feedTabs.get('x') || 'all';
         const people = new Map(state.people.map(person => [person.id, person]));
         const has = (post, kind) => reactions(state.rows, post, kind).some(row => row.speakerId === PLAYER);
-        const handle = post => /^@[A-Za-z0-9_]{1,15}$/.test(post.payload?.handle || '') ? post.payload.handle : `@user_${digest(post.speakerId).replace(/[^A-Za-z0-9_]/g, '').slice(0, 8)}`;
+        const handle = post => xHandle(post.payload?.handle) || `@user_${digest(post.speakerId).replace(/[^A-Za-z0-9_]/g, '').slice(0, 8)}`;
         const changeTab = value => {
             this.feedTabs.set('x', value); this.render(this.state);
             const timeline = this.content.querySelector('.x-timeline'); if (timeline) timeline.scrollTop = 0;
@@ -1769,6 +1769,12 @@ class Phone {
             this.button(has(post, 'follow') ? '取消关注' : '关注', async () => { if (await this.action('follow', { id: post.id })) this.closeDialog(); }, 'outline'),
             ...state.rows.filter(row => row.kind === 'post' && row.speakerId === post.speakerId).map(row => this.el('p', 'post-text', row.text))));
         for (const post of posts) {
+            const sideStory = xSideStory(post);
+            const counts = sideStory && Array.isArray(post.payload.counts) ? post.payload.counts : [];
+            const simulatedCount = kind => {
+                const value = counts.find(entry => entry?.kind === kind)?.text;
+                return typeof value === 'string' && /^\d{1,7}$/.test(value) ? Number(value) : 0;
+            };
             const replies = state.rows.filter(row => row.kind === 'comment' && (row.target === post.id || post.reference && row.target === post.reference)).reverse();
             const card = this.el('article', 'x-post'); card.dataset.search = `${post.speaker} ${handle(post)} ${post.text} ${post.payload?.title || ''}`;
             const avatar = this.button('', () => authorProfile(post), 'x-avatar', `${post.speaker}的主页`); avatar.append(this.avatar(people.get(post.speakerId) || { name: post.speaker }));
@@ -1776,7 +1782,7 @@ class Phone {
             const menu = () => this.dialog('帖子操作', this.el('div', 'form',
                 this.button(has(post, 'follow') ? '取消关注作者' : '关注作者', async () => { if (await this.action('follow', { id: post.id })) this.closeDialog(); }, 'outline'),
                 this.postSyncPanel(state, post, async enabled => { if (await this.action('toggleSync', { id: post.id, enabled })) this.closeDialog(); }),
-                this.button('转发给角色 / 群聊', () => this.forwardEditor(this.state, post), 'outline'), this.button('删除帖子', () => this.deleteSocial(post), 'outline danger')));
+                sideStory ? null : this.button('转发给角色 / 群聊', () => this.forwardEditor(this.state, post), 'outline'), this.button('删除帖子', () => this.deleteSocial(post), 'outline danger')));
             const header = this.el('div', 'x-post-head', this.button(post.speaker, () => authorProfile(post), 'x-author-name'), this.el('span', 'x-handle', handle(post)), this.el('span', 'x-time', `· ${time}`), this.iconButton('more', 'X 帖子更多操作', menu));
             header.querySelector('.x-time').title = time;
             const content = this.el('div', 'x-post-content', header, this.el('p', 'x-post-text', post.text));
@@ -1802,10 +1808,11 @@ class Phone {
             };
             content.append(this.el('div', 'x-post-actions',
                 metric('messages', '评论 X 帖子', () => this.commentEditor(post), replies.length),
-                metric('sync', '转发给联系人', () => this.forwardEditor(this.state, post)),
-                metric('heart', '点赞 X 帖子', () => this.action('like', { id: post.id }), reactions(state.rows, post, 'like').length, has(post, 'like'), 'x-like'),
+                sideStory ? metric('sync', '在 X 内转发', () => this.action('repost', { id: post.id }), simulatedCount('转发') + reactions(state.rows, post, 'repost').length)
+                    : metric('sync', '转发给联系人', () => this.forwardEditor(this.state, post)),
+                metric('heart', '点赞 X 帖子', () => this.action('like', { id: post.id }), simulatedCount('点赞') + reactions(state.rows, post, 'like').length, has(post, 'like'), 'x-like'),
                 metric('bookmark', '收藏 X 帖子', () => this.action('collect', { id: post.id }), undefined, has(post, 'collect'), 'x-bookmark'),
-                metric('share', '分享 X 动态', () => this.forwardEditor(this.state, post))));
+                sideStory ? null : metric('share', '分享 X 动态', () => this.forwardEditor(this.state, post))));
             if (replies.length) {
                 const expanded = this.xExpanded.has(post.id);
                 const toggle = this.button(expanded ? '收起回复' : `查看 ${replies.length} 条回复`, () => {
@@ -2017,21 +2024,23 @@ class Phone {
         const styleHint = this.small(`${PLATFORMS[platform]}：${this.settings.platformPrompts?.[platform]?.trim() ? '使用自定义平台提示词' : PLATFORM_RULES[PLATFORMS[platform]]?.summary || ''} · 可含一年前的历史动态 · 配图由角色决定`);
         const apiHint = this.small(`AI 使用：${profile?.name || '默认连接'} · 多条动态也只发送一次请求 · 可在设置 → 各平台 API 中分别配置`);
         const inject = this.input('checkbox', this.settings.socialSync?.[platform] === true);
+        const syncField = this.el('label', 'field switch', '将这条内容注入下一轮正文', inject);
         const submit = this.button('', () => {
             this.closeDialog();
-            this.action(method.value === 'ai' ? 'postActor' : 'post', { actor: actor.value, count: Number(count.value), text: text.value, platform, inject: inject.checked,
+            this.action(method.value === 'ai' ? 'postActor' : 'post', { actor: actor.value, count: Number(count.value), text: text.value, platform, inject: !syncField.hidden && inject.checked,
                 payload: { title: title.value, tags: tags.value, media: media.value.split('\n').map(text => text.trim()).filter(Boolean).slice(0, 9).map(text => ({ type: platform === 'douyin' && !safeUrl(text) ? 's-video' : 's-image', text: safeUrl(text) ? '图片' : text, ...(safeUrl(text) ? { fields: { src: safeUrl(text) } } : {}) })) }, public: scope.value === 'all', members: checks.selected() });
         }, 'primary');
         const update = () => {
             const ai = method.value === 'ai';
             countField.hidden = apiHint.hidden = styleHint.hidden = actor.hidden = !ai;
+            syncField.hidden = ai && platform === 'x';
             for (const field of [title, tags, media]) field.hidden = ai;
             text.placeholder = ai ? '想看什么动态？也可写“一年前的旅行记录”等时间要求（可选）' : '记录此刻真实发生的事';
             submit.textContent = ai ? `AI 生成并发布（最多 ${count.value} 条）` : '发布';
             submit.disabled = ai && !actor.value;
         };
         method.onchange = update; count.onchange = update; update();
-        this.dialog(`发布到${PLATFORMS[platform]}`, this.el('div', 'form post-editor', method, actor, countField, styleHint, apiHint, title, text, media, tags, scope, checks.node, this.el('label', 'field switch', '将这条内容注入下一轮正文', inject), submit));
+        this.dialog(`发布到${PLATFORMS[platform]}`, this.el('div', 'form post-editor', method, actor, countField, styleHint, apiHint, title, text, media, tags, scope, checks.node, syncField, submit));
     }
 
     regeneratePostImages(post) {
@@ -2543,7 +2552,7 @@ class Phone {
         form.append(this.heading('设置', 'PREFERENCES'), this.settingsGroup('连接与模型', '生成通路、API 和模型参数', 'wifi', field('apiMode', '生成通路', 'choice', [['tavern', '酒馆当前连接'], ['custom', '独立 OpenAI 兼容 API']]),
             field('base', '独立 Base URL'), field('secret', '独立 API 密钥（持久保存）', 'password'), modelPicker, this.el('div', 'settings-model-row', modelField, this.button('拉取模型', async () => { if ((await this.flushAutosaves()).every(Boolean)) await this.action('models'); }, 'outline')), profileControls,
             field('streaming', '独立 API 流式接收', 'checkbox'), this.small('逐步接收以减轻网关等待；完整结构化回复接收成功后才显示和写入账本。连接测试成功只代表短请求可用。'),
-            field('temperature', '独立温度', 'number'), field('output', '手机最大输出 Token（0＝不额外限制）', 'number'), this.small('默认不发送输出上限，由服务商决定。可填写任意有效正整数；要求明确上限的原生服务沿用当前连接设置。'), this.el('div', 'actions', this.button('测试连接', async () => { await this.flushAutosaves(); this.action('test'); }, 'outline'), this.button('清除当前密钥', () => this.action('settings', { secret: '' }), 'link')),
+            field('temperature', '独立温度', 'number'), field('output', '手机最大输出 Token（0＝不额外限制）', 'number'), this.small('默认不发送输出上限，由服务商决定。可填写任意有效正整数；要求明确上限的原生服务沿用当前连接设置。'), this.el('div', 'actions', this.button('测试连接', async () => { if ((await this.flushAutosaves()).every(Boolean)) await this.action('test'); }, 'outline'), this.button('清除当前密钥', () => this.action('settings', { secret: '' }), 'link')),
             this.small('连接测试会发一个不含剧情的短请求。模型列表不请求生成。密钥保存在当前酒馆账号的浏览器存储中，刷新或更新脚本后保留；不进入剧情、聊天备份或提示词。')),
             platformApiGroup, platformPromptGroup,
             this.settingsGroup('生图设置', '跟随酒馆、独立 API 与自定义代理', 'imagegen', this.button('打开生图设置', () => this.imageSettingsPanel(), 'outline'), this.small('连接、画风、画面规则与角色参考在此管理；密钥独立保存在本机。')),

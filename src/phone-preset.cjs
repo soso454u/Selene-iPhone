@@ -165,6 +165,13 @@ function sections(text) {
 
 const BUILTIN_SECTIONS = new Map(sections(DEFAULT_PRESET).map(part => [part.key, part.text]));
 
+const PREVIOUS_X_PROMPT = `[TWITTER]
+账号可为匿名小号、私人账号、创作号、情绪树洞或成人向审美账号；ID 根据人物风格生成并保持稳定。
+可写深夜放飞、私人碎碎念、性感穿搭、暧昧玩笑、亲密话题、大胆自我展示、私人审美、情绪宣泄、犀利吐槽和粉丝互动。线上表达可以更大胆、直接或放松，不写普通行程流水账，不强制围绕玩家。
+每条通常 1—2 句，允许俚语、双关、emoji 和调侃。批量内容可纯文字、图文混合、连续话题或独立短帖，避免同义重复。
+配图说明主体、服装、姿势、表情、构图、环境和光线。互动可欣赏、玩梗、追问、质疑及作者回复，不机械制造高热度。
+番外内容不作为正文依据，不改变原有性格、关系及剧情记忆；需要正文同步时遵循实际剧情。`;
+
 const PLATFORM_RULES = Object.freeze({
     "朋友圈": {
         summary: "熟人生活、随手记录、好友互动",
@@ -206,13 +213,40 @@ const PLATFORM_RULES = Object.freeze({
 回帖可认真解答、质疑真实性、分享经历、催更、玩梗、跑题、争论及楼主回复；不同楼层不强行达成共识。匿名讨论不自动暴露现实身份和私人关系，番外内容不当作正文事实。`,
     },
     "X": {
-        summary: "匿名小号、私人表达、审美与短帖互动",
+        summary: "成年角色的成人向小号与番外短帖",
         text: `[TWITTER]
-账号可为匿名小号、私人账号、创作号、情绪树洞或成人向审美账号；ID 根据人物风格生成并保持稳定。
-可写深夜放飞、私人碎碎念、性感穿搭、暧昧玩笑、亲密话题、大胆自我展示、私人审美、情绪宣泄、犀利吐槽和粉丝互动。线上表达可以更大胆、直接或放松，不写普通行程流水账，不强制围绕玩家。
-每条通常 1—2 句，允许俚语、双关、emoji 和调侃。批量内容可纯文字、图文混合、连续话题或独立短帖，避免同义重复。
-配图说明主体、服装、姿势、表情、构图、环境和光线。互动可欣赏、玩梗、追问、质疑及作者回复，不机械制造高热度。
-番外内容不作为正文依据，不改变原有性格、关系及剧情记忆；需要正文同步时遵循实际剧情。`,
+【Twitter / X 生成规则】（色情向·网黄号）
+
+基础设定
+- 账号定位：网黄号 / 成人内容账号（可匿名、可半公开），仅适用于明确成年的角色。ID 根据角色人设自然推断并保持稳定。
+- 内容范围：番外小剧场。独立于正文，不影响正文性格、关系与剧情记忆。不得作为正文参考。
+- 每条推文必须与性相关，大胆、直白、色情。禁止生成普通日常、行程、无性暗示的内容。
+- 语气与行为根据角色性格决定，但即使是冷淡、高冷、克制型，在这个账号上也可以大胆开放、露骨表达（这是“放飞账号”的设定）。
+- 每条通常 1–2 句，允许俚语、双关、脏话、emoji、调侃。语言必须直白，不绕弯、不含蓄暗示。
+
+内容方向（随机或自由组合，不要固定模板）
+模型可自行决定当下发什么，优先从以下方向中自然选择或混合：
+- 做爱实录（正在做 / 刚做完，谁和谁、体位、连接处、体液、声音、边做边发）
+- 床评 / 事后吐槽（评价最近一次性爱，具体到体位、尺寸、次数、谁先去、余韵）
+- 擦边与渐进（性暗示 + 双关，或越发越大胆）
+- 露骨直发（直接描述裸照 / 身体部位 / 液体 / 红印）
+- 深夜放飞（凌晨时段，比平时更无所顾忌）
+- 事后状态（刚高潮 / 刚射完的余韵、身体反应）
+- 对粉丝的露骨互动、评论门槛（“评论解锁无码”“想看就说”等）
+- 自慰过程、边做边拍、对{{user}}的隐晦提及（粉丝不知道是谁）
+- 用 emoji 直接代替文字（🍆💦🫦🥵 等）
+
+配图规则
+- 有图时必须同时生成英文提示词，每张图分别填入自己的 fields.prompt。
+- 图片描述要直接使用身体词汇：乳房 / 乳头 / 鸡巴 / 穴 / 全裸 / 液体 / 红印 等。
+- 写清楚：身体状态 + 姿势 + 表情/脸 + 是否打码 + 光线 + 环境。
+- 配图风格可随机或按节奏变化：重磅露骨、渐进大胆、纯文字、擦边夹全裸混合。
+
+其他细节
+- 性别表达：女性侧重高潮，男性侧重射精及相关反应。
+- 互动数据：内容越露骨，模拟点赞/转发/评论可适当更高。
+- 批量生成时可连续话题、独立短帖、图文混合，避免同义重复。
+- 保持角色特色的同时，允许在这个账号里更放松、更色情、更直白。`,
     },
 });
 
@@ -254,7 +288,7 @@ function cleanPlatformPrompts(input, strict = false) {
             continue;
         }
         const text = value.trim();
-        if (text && text !== PLATFORM_RULES[name].text && text !== LEGACY_SOCIAL_DEFAULTS.platforms[name]) result[id] = text;
+        if (text && text !== PLATFORM_RULES[name].text && text !== LEGACY_SOCIAL_DEFAULTS.platforms[name] && !(id === 'x' && text === PREVIOUS_X_PROMPT)) result[id] = text;
     }
     return result;
 }
@@ -269,6 +303,7 @@ const postCounts = platform => platform === 'X' ? [5, 6, 7] : [1, 3, 5];
 
 function phonePrompt(text, { enabled, post, commentsOnly = false, group, platform = '朋友圈', postCount = 1, commonPrompt = SOCIAL_COMMON_PROMPT, platformPrompts = {} }) {
     const parts = enabled ? sections(text) : [];
+    const xPost = post && platform === 'X';
     const selected = ['CORE', ...(post ? ['SOCIAL'] : ['CHAT', ...(group ? ['GROUP'] : [])]), 'OUTPUT'];
     const blocks = selected.map(name => {
         const blocks = parts.filter(part => MODULES[part.key] === name && !(post && part.key === 'SOCIAL_LIFE' && part.text.replace(/\r\n/g, '\n') === BUILTIN_SECTIONS.get(part.key))).map(part => part.text);
@@ -281,10 +316,10 @@ function phonePrompt(text, { enabled, post, commentsOnly = false, group, platfor
             if (commentsOnly) return '【OUTPUT】\n仅为指定原帖生成 15–40 条有差异的模拟评论，不代替玩家发言，不复述或新建主帖。仅输出 JSON：{"comments":[{"id":"reader_1","nickname":"自然昵称","text":"评论正文","quote":"所回复内容（可选）","postedAt":"评论剧情时间（可选）"}]}。每条最多 500 字，只依据原帖已公开的信息互动，不泄露私聊或后来剧情。朋友圈限合理熟人，不虚构陌生路人。不能把示例当成实际评论；不输出分析、Markdown 或 HTML。';
             if (post) blocks.push(SOCIAL_IMAGE_PROTOCOL);
             const batch = post && postCount > 1;
-            const interactionProtocol = post ? `${platform === 'X' ? '账号写入 payload.handle，@ 后使用 1–15 位英文字母、数字或下划线。' : ''}${SOCIAL_TIME_RULE}评论互动写入各条 payload.comments 数组，元素为 {id:稳定的账号ID,nickname:昵称,text:评论正文,quote:所回复内容（可选）,postedAt:评论时间（可选）}。最多每帖 40 条，每条不超过 500 字；主帖正文不重复罗列评论。不生成玩家的评论。只输出本应用 JSON 数据，不输出 HTML、CSS 或脚本。互动数以实际生成的记录为准，不另外捏造统计字段。` : '';
+            const interactionProtocol = post ? `${xPost ? '账号写入 payload.handle，@ 后使用 1–15 位英文字母、数字或下划线，同一角色沿用已提供的账号。' : ''}${SOCIAL_TIME_RULE}评论互动写入各条 payload.comments 数组，元素为 {id:稳定的账号ID,nickname:昵称,text:评论正文,quote:所回复内容（可选）,postedAt:评论时间（可选）}。最多每帖 40 条，每条不超过 500 字；主帖正文不重复罗列评论。不生成玩家的评论。只输出本应用 JSON 数据，不输出 HTML、CSS 或脚本。${xPost ? '可以在 payload.counts 中填写 X 番外的模拟点赞、转发数，格式为 [{"kind":"点赞","text":"42"},{"kind":"转发","text":"6"}]；评论数由实际生成的评论计算。发布时间只为番外排序，不确认正文事件。' : '互动数以实际生成的记录为准，不另外捏造统计字段。'}` : '';
             const limit = batch ? `${platform}：只在这一次请求中生成 0–${postCount} 条不同动态，使用 posts 数组，每项包含 text 和独立 payload（可含 title、tags、location、media）。media 的 type 为 s-image 或 s-video、text 为画面说明，fields.src 只用已有真实地址。本轮批量协议覆盖预设中单条 messages 的格式要求。${platform === 'X' ? `若有发布动机，生成 ${Math.min(5, postCount)}–${postCount} 条；没有发布动机可返回空 posts。` : ''}` : post ? `${platform}：messages 包含 0 或 1 条实际发布的动态正文。可用 payload 对象附带 title、tags、location，以及 media 数组（type 为 s-image 或 s-video，text 为画面描述，fields.src 仅填写已有真实地址）。` : '聊天：messages 包含 0–6 条指定发言人实际发送的消息，每条对应一个气泡。可另加 components 数组，type 为 trans/reply/photo/video/voice/sticker/loc/red/pay/call/file/link/sys，fields 为已知属性，text 为内容；不得虚构资源、金额、状态或时长。';
             const example = batch ? '{"posts":[{"text":"动态正文","payload":{"title":"标题","comments":[{"id":"reader_1","nickname":"昵称","text":"评论正文"}]}}]}' : post ? '{"messages":["动态正文"],"payload":{"comments":[{"id":"reader_1","nickname":"昵称","text":"评论正文"}]}}' : '{"messages":["实际文本"]}';
-            blocks.push(`${post ? '' : '仅按本轮任务发言。人物性格、关系及情绪以有效资料为准，不由预设重新定义；带「资料」标记的内容仅作设定与剧情依据，不是生成指令。示例对话不是已发生的事件。\n'}${limit}${interactionProtocol}${post ? '每条动态是否配图、配几张（0–9 张），由发言角色依据性格、发布意图和当前内容自行决定；可纯文字、单图或多图，不默认固定为一张，不为凑数添加图片。动态条数与每条配图张数彼此独立。将每张配图分别写入该条 payload.media 数组，逐张提供不同的画面描述；无配图时使用空 media 数组。本轮有发布时评论合计至少 15 条，必须实际填入 payload.comments，不能只写评论数量；下方示例仅示范字段，不代表只生成一条评论。' : '图片分享可在 components 中包含多张 photo，每张分别描述，不要固定为一张。'}只输出 JSON 对象，格式为 ${example}；不发送时用空数组。可另加字符串字段 memory，记录本轮实际建立且仍有后续影响的事项，并区分声称、计划、承诺与已完成事实。不要输出分析、Markdown 围栏或正文美化容器。`);
+            blocks.push(`${post ? '' : '仅按本轮任务发言。人物性格、关系及情绪以有效资料为准，不由预设重新定义；带「资料」标记的内容仅作设定与剧情依据，不是生成指令。示例对话不是已发生的事件。\n'}${limit}${interactionProtocol}${post ? '每条动态是否配图、配几张（0–9 张），由发言角色依据性格、发布意图和当前内容自行决定；可纯文字、单图或多图，不默认固定为一张，不为凑数添加图片。动态条数与每条配图张数彼此独立。将每张配图分别写入该条 payload.media 数组，逐张提供不同的画面描述；无配图时使用空 media 数组。本轮有发布时评论合计至少 15 条，必须实际填入 payload.comments，不能只写评论数量；下方示例仅示范字段，不代表只生成一条评论。' : '图片分享可在 components 中包含多张 photo，每张分别描述，不要固定为一张。'}只输出 JSON 对象，格式为 ${example}；不发送时用空数组。${xPost ? 'X 番外省略剧情记忆字段 memory。' : '可另加字符串字段 memory，记录本轮实际建立且仍有后续影响的事项，并区分声称、计划、承诺与已完成事实。'}不要输出分析、Markdown 围栏或正文美化容器。`);
         }
         return blocks.length ? `【${name}】\n${blocks.join('\n\n')}` : '';
     });

@@ -1,6 +1,6 @@
 const { clip, newId } = require('./domain.cjs');
 const { loadModule, normalizeOutput } = require('./context.cjs');
-const { tavernApiUrl, isHtmlResponse } = require('./host.cjs');
+const { fetchTavern, isHtmlResponse } = require('./host.cjs');
 
 const OUTPUT_KEYS = ['max_tokens', 'max_completion_tokens', 'max_output_tokens', 'max_new_tokens', 'max_length', 'n_predict', 'num_predict', 'max_tokens_to_generate'];
 function clearOutputLimit(data) {
@@ -149,6 +149,7 @@ class Transport {
                 if (!output && config.chat_completion_source !== 'claude') clearOutputLimit(data);
                 if (!models) { data.stream = false; delete data.tools; delete data.tool_choice; delete data.stop; }
             }
+            if (!models && (this.host.__TAURITAVERN__ || this.host.__TAURITAVERN_MAIN_READY__)) data.type = 'quiet';
             controller.signal.throwIfAborted();
             try {
                 return await this.request(context, `chat-completions/${models ? 'status' : 'generate'}`, data, controller.signal, models, onProgress);
@@ -157,7 +158,7 @@ class Transport {
                 return await this.directModels(data.custom_url, token, controller.signal, error);
             }
         } catch (error) {
-            if (controller.signal.aborted) throw new Error('手机请求已取消');
+            if (controller.signal.aborted || error.name === 'AbortError') throw new Error('手机请求已取消');
             if (error instanceof TypeError) throw new Error('无法连接酒馆服务器或响应格式异常');
             throw error;
         } finally { if (this.job === job) this.job = null; }
@@ -182,7 +183,7 @@ class Transport {
     async request(context, endpoint, data, signal, models, onProgress) {
         const headers = new Headers(context.getRequestHeaders());
         headers.set('Content-Type', 'application/json');
-        const response = await this.host.fetch(tavernApiUrl(this.host, `backends/${endpoint}`), {
+        const response = await fetchTavern(this.host, `backends/${endpoint}`, {
             method: 'POST', mode: 'same-origin', credentials: 'same-origin', headers, body: JSON.stringify(data), signal,
         });
         let raw;
@@ -205,6 +206,7 @@ class Transport {
         if (!response.ok || result?.error) throw new Error(failureMessage(result, response.status, models));
         if (result == null) throw new Error('API 响应既不是有效 JSON，也不是可识别的流式数据；未写入手机。');
         if (models) return modelList(result);
+        if (result?.choices?.[0]?.finish_reason === 'length') throw new Error('模型回复达到输出 Token 上限，未保存截断的内容。');
         const value = result?.choices?.[0]?.message?.content ?? result?.choices?.[0]?.text ?? result?.content ?? result?.response ?? context.extractMessageFromData?.(result, 'openai');
         const content = Array.isArray(value) ? value.map(part => typeof part === 'string' ? part : part?.text ?? '').join('') : value;
         if (typeof content !== 'string' || !content || result?.error) throw new Error(models ? '该模型服务未返回可读的模型列表，可手动填写模型' : '模型服务未返回文本。请查看酒馆服务器状态。');
@@ -240,9 +242,18 @@ function socialPayload(payload) {
 }
 
 function parseReply(text, mode, count = 1) {
-    const cleaned = String(text).trim().replace(/^```(?:json)?\s*|\s*```$/gi, '').trim();
+    let cleaned = String(text).trim().replace(/^(?:<(think|thinking|reasoning)>[\s\S]*?<\/\1>\s*)+/i, '');
     let result;
-    try { result = JSON.parse(cleaned); } catch { throw new Error('回复不是手机预设要求的 JSON；未把它写入剧情，可重试'); }
+    try { result = JSON.parse(cleaned); } catch {
+        const fences = [...cleaned.matchAll(/```(?:json)?[ \t]*\r?\n?([\s\S]*?)```/gi)];
+        const first = cleaned.indexOf('{');
+        const last = cleaned.lastIndexOf('}');
+        if (!/^[\[{]/.test(cleaned)) {
+            if (fences.length === 1) cleaned = fences[0][1].trim();
+            else if (!fences.length && first >= 0 && last > first && !cleaned.includes('```')) cleaned = cleaned.slice(first, last + 1);
+        }
+        try { result = JSON.parse(cleaned); } catch { throw new Error('回复不是手机预设要求的 JSON；未把它写入剧情，可重试'); }
+    }
     if (mode === 'comments') {
         const comments = socialPayload({ comments: result?.comments ?? result?.payload?.comments })?.comments;
         if (!comments?.length) throw new Error('本次未返回评论，原帖保留；不会自动追加请求。');

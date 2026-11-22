@@ -15,10 +15,11 @@ test('bundled resources preserve all original fields, deduplicate, protect manua
     const context = { characterId: 0, characters: [structuredClone(storedCard)], accountStorage: { getItem: key => settings.get(key), setItem: (key, value) => settings.set(key, value) }, getRequestHeaders: () => ({}) };
     const host = { document: { baseURI: 'https://tavern.test/' }, fetch: async (url, options) => {
         const body = JSON.parse(options.body);
-        if (url.pathname.endsWith('worldinfo/get')) return Response.json(storedBook);
-        if (url.pathname.endsWith('characters/get')) return Response.json(storedCard);
+        const route = new URL(url).pathname;
+        if (route.endsWith('worldinfo/get')) return Response.json(storedBook);
+        if (route.endsWith('characters/get')) return Response.json(storedCard);
         writes++;
-        if (url.pathname.endsWith('worldinfo/edit')) storedBook = body.data;
+        if (route.endsWith('worldinfo/edit')) storedBook = body.data;
         else storedCard.data.extensions.regex_scripts = body.data.extensions.regex_scripts;
         return Response.json({ ok: true });
     } };

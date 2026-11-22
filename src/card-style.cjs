@@ -22,6 +22,15 @@ function cardJson(text) {
     } catch { return null; }
 }
 
+function styleUpdate(previous, next) {
+    if (!record(previous) || !record(next)) return next;
+    const removed = Object.keys(previous).filter(key => !Object.hasOwn(next, key) && !['__proto__', 'constructor', 'prototype'].includes(key));
+    return Object.fromEntries([
+        ...removed.map(key => [key, '__@@UNSET@@__']),
+        ...Object.entries(next).map(([key, value]) => [key, styleUpdate(previous[key], value)]),
+    ]);
+}
+
 class CardStyles {
     constructor(ledger, account) { Object.assign(this, { ledger, account, cache: new Map() }); }
     key(card) { return `card-style:${this.account}:${card.avatar}`; }
@@ -86,7 +95,8 @@ class CardStyles {
             const before = await read();
             if (!record(before?.data)) throw new Error('酒馆未返回当前角色卡数据，无法保存绑定。');
             assertTarget();
-            await resources.request('characters/merge-attributes', { avatar: target, data: { extensions: { [STYLE_FIELD]: payload } } });
+            const patch = styleUpdate(before.data.extensions?.[STYLE_FIELD], payload);
+            await resources.request('characters/merge-attributes', { avatar: target, data: { extensions: { [STYLE_FIELD]: patch } } });
             const saved = await read();
             if (fingerprint(saved?.data?.extensions?.[STYLE_FIELD] ?? null) !== fingerprint(payload)) throw new Error('绑定内容回读不一致，请重新检查角色卡。');
             const active = currentCard();

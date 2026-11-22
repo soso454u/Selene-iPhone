@@ -1,6 +1,6 @@
 const { before, active, clip, digest, dialogue, handoffs, lineage, makeEvent, parseStory, serializeHandoff, threadKey } = require('./domain.cjs');
 const { cacheMemoryBlocks } = require('./story-sources.cjs');
-const { STICKERS } = require('./media.cjs');
+const { STICKERS, xSideStory } = require('./media.cjs');
 
 const echoText = value => String(value || '').replace(/\r\n/g, '\n').trim();
 function messageEchoKey(row, settings) {
@@ -41,6 +41,7 @@ async function handedOffMessages({ ledger, scope, chat, trail, floor, settings }
 }
 
 function postSyncEnabled(post, settings, prefs = {}) {
+    if (xSideStory(post)) return false;
     for (const key of [post.id, post.reference].filter(Boolean)) if (typeof prefs.postSync?.[key] === 'boolean') return prefs.postSync[key];
     return post.origin === 'phone' ? post.sync !== false : settings.socialSync?.[post.thread] === true;
 }
@@ -54,7 +55,7 @@ async function blockedPostSync(ledger, scope, trail) {
     }
     return blocked;
 }
-const allowedSync = (row, blocked) => row.kind !== 'phoneSnapshot' && row.sync !== false && (row.kind === 'post' ? !blocked.has(row.id) && !blocked.has(row.reference) : !blocked.has(row.target));
+const allowedSync = (row, blocked) => row.kind !== 'phoneSnapshot' && !xSideStory(row) && row.sync !== false && (row.kind === 'post' ? !blocked.has(row.id) && !blocked.has(row.reference) : !blocked.has(row.target));
 
 async function pendingSyncEvents(ledger, scope, trail, limit = 35, onlyReveals = false) {
     const blocked = await blockedPostSync(ledger, scope, trail);
