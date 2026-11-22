@@ -114,8 +114,9 @@ function start(frame) {
             resources.context = fresh;
             const target = await resources.inspect();
             await resources.run(target, 'hide', 'install');
-        } catch (error) { host.toastr?.warning(`手机交接隐藏正则未安装：${error.message}`); }
-        finally { hideInstalling = false; }
+        } catch {
+            // Automatic setup runs in the background. Manual checks report errors in Tavern integration settings.
+        } finally { hideInstalling = false; }
     }
     let disposed = false;
     let timer;
