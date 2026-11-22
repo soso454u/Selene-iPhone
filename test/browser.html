@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<base href="/">
+<title>Selene手机 · 浏览器测试</title>
+<style>body{margin:0;padding:40px;background:#171921;color:#e4e4ed;font:16px system-ui}main{max-width:460px}button{margin:4px;padding:9px 15px}</style>
+<main>
+<h1>Selene手机测试</h1>
+<p>本页使用模拟酒馆事件与模型响应，不连接任何外部服务。</p>
+<button onclick="fixture.native()">模拟发送正文</button>
+<button onclick="fixture.switchChat()">切换测试聊天</button>
+<button onclick="fixture.unload()">卸载手机</button>
+<details><summary>模拟魔法棒工具栏</summary><div id="extensionsMenu"></div></details>
+<pre id="result"></pre>
+</main>
+<script>
+const events = new Map();
+const names = ['GENERATION_AFTER_COMMANDS', 'MESSAGE_SENT', 'CHAT_COMPLETION_SETTINGS_READY', 'MESSAGE_RECEIVED', 'CHARACTER_MESSAGE_RENDERED', 'MESSAGE_SWIPED', 'CHAT_CHANGED'];
+const eventSource = {
+    on(name, handler) { if (!events.has(name)) events.set(name, new Set()); events.get(name).add(handler); },
+    removeListener(name, handler) { events.get(name)?.delete(handler); },
+    async emit(name, ...args) { for (const handler of events.get(name) || []) await handler(...args); },
+};
+const accountStorage = { getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) };
+const storageKey = 'tavern-pocket:v1:settings';
+if (!accountStorage.getItem(storageKey)) accountStorage.setItem(storageKey, JSON.stringify({ apiMode: 'custom', base: 'https://model.example.test/v1', model: 'fixture', lore: false, dynamic: false }));
+const initialChat = [{ name: '顾砚卿', is_user: false, mes: '顾砚卿推开办公室的门。', send_date: '2026-01-01T00:00:00Z' }];
+let id = 'pocket-browser-test';
+const loadChat = () => JSON.parse(localStorage.getItem(id) || JSON.stringify(initialChat));
+const context = {
+    name1: '林遥', characterId: 0, characters: [JSON.parse(localStorage.getItem('pocket-fixture-card') || 'null') || { avatar: 'gu.png', name: '顾砚卿', description: '说话克制，有自己的工作。', data: { extensions: {} } }], groups: [], chat: loadChat(), mainApi: 'openai',
+    accountStorage, eventSource, chatMetadata: JSON.parse(localStorage.getItem(`${id}:metadata`) || '{}'), eventTypes: Object.fromEntries(names.map(name => [name, name])),
+    getCurrentChatId: () => id, powerUserSettings: { persona_description: '林遥' },
+    getRequestHeaders: () => ({ 'Content-Type': 'application/json' }),
+    saveChat: async () => { localStorage.setItem(id, JSON.stringify(context.chat)); localStorage.setItem(`${id}:metadata`, JSON.stringify(context.chatMetadata)); },
+};
+window.SillyTavern = { getContext: () => context };
+const NativeFunction = window.Function;
+window.Function = function(...args) {
+    if (args[0] === 'url' && args[1] === 'return import(url);') return async url => {
+        if (url.endsWith('/scripts/slash-commands/SlashCommandParser.js')) return { SlashCommandParser: { commands: { sd: { namedArgumentList: [{ name: 'quiet' }], callback: async (args, prompt) => {
+            const call = fixture.slashRequests.push({ args, prompt });
+            if (fixture.imageDelay) await new Promise(resolve => setTimeout(resolve, fixture.imageDelay));
+            if (call === fixture.imageFailAt) throw new Error('模拟生图失败');
+            return '/test/pixel.png';
+        } } } } };
+        return import(url);
+    };
+    return NativeFunction(...args);
+};
+
+window.TavernHelper = {};
+const attach = Element.prototype.attachShadow;
+Element.prototype.attachShadow = function(options) { return attach.call(this, this.id === 'tavern-pocket-host' ? { ...options, mode: 'open' } : options); };
+window.fetch = async (url, options) => {
+    const path = String(url); const body = JSON.parse(options.body);
+    if (path.includes('/api/chats/get')) return Response.json([{ chat_metadata: JSON.parse(localStorage.getItem(`${body.file_name}:metadata`) || '{}') }, ...JSON.parse(localStorage.getItem(body.file_name) || JSON.stringify(initialChat))]);
+    if (path.includes('/api/characters/get')) return Response.json(context.characters.find(card => card.avatar === body.avatar_url));
+    if (path.includes('/api/characters/merge-attributes')) {
+        const card = context.characters.find(card => card.avatar === body.avatar); card.data ??= {}; card.data.extensions ??= {};
+        Object.assign(card.data.extensions, body.data.extensions);
+        localStorage.setItem('pocket-fixture-card', JSON.stringify(card));
+        return Response.json({ ok: true });
+    }
+    if (path.startsWith('https://fixture-image.test/')) {
+        fixture.imageRequests.push(body);
+        return Response.json({ base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/t9sAAAAASUVORK5CYII=' });
+    }
+    if (!path.startsWith(location.origin + '/api/backends/chat-completions/')) throw new Error('测试页不访问外部网络');
+    fixture.requests.push(body);
+    const batch = body.messages?.some(message => message.content.includes('"posts"'));
+    const count = body.messages?.map(message => message.content).join(' ').match(/最多 (\d) 条/)?.[1] || 3;
+    const social = body.messages?.some(message => message.content.includes('评论互动写入各条 payload.comments'));
+    const comments = length => Array.from({ length }, (_, i) => ({ id: `visitor_${i}`, nickname: `路过${i}`, text: `这是第 ${i + 1} 条模拟评论` }));
+    const commentsOnly = body.messages?.some(message => message.content.includes('仅为指定原帖生成'));
+    const characterPhone = body.messages?.some(message => message.content.includes('本轮只准备指定角色手机里的私人生活记录'));
+    const content = characterPhone ? { messages: [{ peer: '宋悦', messages: [{ from: 'owner', text: '下班顺路带一份点心。', time: '19:40' }, { from: 'peer', text: '好，那我等你。', time: '19:41' }] }], notes: [{ title: '周末待办', content: '给朋友带一份点心。' }], history: [{ title: '附近的点心店', site: '地图', summary: '查看营业时间。' }], cart: [{ name: '礼物包装', price: '¥29', quantity: 1, reason: '浅蓝色，小号。' }] } : commentsOnly ? { comments: comments(15) } : batch ? { posts: Array.from({ length: Number(count) }, (_, i) => ({ text: `今天的小记录 ${i + 1}`, payload: { title: `日常 ${i + 1}`, postedAt: fixture.postDates[i] || '今天', media: [{ type: 's-image', text: `街角的一束花 ${i + 1}` }], comments: comments(Math.ceil(15 / Number(count))) } })) } : social ? { messages: ['今天的小记录'], payload: { title: '单条笔记', postedAt: fixture.postDates[0], media: [{ type: 's-image', text: '街角的花' }], comments: comments(15) } } : { messages: ['晚点见。', '我带了蛋糕。'], memory: '' };
+    return Response.json(path.endsWith('/status') ? { data: [{ id: 'fixture' }] } : { choices: [{ message: { content: JSON.stringify(content) } }] });
+};
+
+window.fixture = {
+    context, events, requests: [], imageRequests: [], slashRequests: [], imageDelay: 0, imageFailAt: 0, postDates: ['3天前', '昨天', '今天'],
+    async native() {
+        await eventSource.emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+        context.chat.push({ name: '林遥', is_user: true, mes: '我点点头。' });
+        await eventSource.emit('MESSAGE_SENT', context.chat.length - 1);
+        const source = context.chat.at(-1).mes;
+        await eventSource.emit('CHAT_COMPLETION_SETTINGS_READY', { messages: [{ role: 'user', content: source }] });
+        context.chat.push({ name: '顾砚卿', is_user: false, mes: '顾砚卿拿起手机，给她发了一条微信：“下班了吗？我在楼下等你。”' });
+        await eventSource.emit('MESSAGE_RECEIVED', context.chat.length - 1, 'normal');
+        await context.saveChat();
+        document.querySelector('#result').textContent = source;
+        return source;
+    },
+    async switchChat() {
+        id = id === 'pocket-browser-test' ? 'pocket-browser-test-other' : 'pocket-browser-test';
+        context.chat = loadChat();
+        context.chatMetadata = JSON.parse(localStorage.getItem(`${id}:metadata`) || '{}');
+        await eventSource.emit('CHAT_CHANGED', id);
+    },
+    unload() { dispatchEvent(new Event('pagehide')); },
+};
+</script>
+<script src="../dist/Selene手机.js"></script>
+</html>

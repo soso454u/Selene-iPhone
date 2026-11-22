@@ -1,0 +1,5 @@
+.DS_Store
+node_modules/
+*.tmp
+# Local snapshots from earlier builds; published versions use Git tags.
+dist/Selene手机-*.js

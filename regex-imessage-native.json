@@ -1,0 +1,416 @@
+[
+  {
+    "id": "3d98c368-d9c4-4c09-a232-6273315cdab5",
+    "scriptName": "00｜iMessage｜顶部联系人 · 无侧边头像",
+    "findRegex": "/(?!(?:(?!<\\/?chat\\b)[\\s\\S])*?<\\/chat>)(?:(?=(?:<im\\s+sender=\"user\"\\s+name=\"[^\"]+\"\\s+time=\"(?:[01]\\d|2[0-3]):[0-5]\\d\"\\s*>(?:(?!<\\/?im\\b)[\\s\\S])*?<\\/im>\\s*|(?:<date>[\\s\\S]*?<\\/date>|<sys\\s+time=\"(?:[01]\\d|2[0-3]):[0-5]\\d\"\\s*>[\\s\\S]*?<\\/sys>)\\s*)*<im\\s+sender=\"(char|npc)\"\\s+name=\"([^\"])([^\"]*)\")|)((?:<im\\s+sender=\"(?:user|char|npc)\"\\s+name=\"[^\"]+\"\\s+time=\"(?:[01]\\d|2[0-3]):[0-5]\\d\"\\s*>(?:(?!<\\/?im\\b)[\\s\\S])*?<\\/im>|(?:<date>[\\s\\S]*?<\\/date>|<sys\\s+time=\"(?:[01]\\d|2[0-3]):[0-5]\\d\"\\s*>[\\s\\S]*?<\\/sys>))(?:\\s*(?:<im\\s+sender=\"(?:user|char|npc)\"\\s+name=\"[^\"]+\"\\s+time=\"(?:[01]\\d|2[0-3]):[0-5]\\d\"\\s*>(?:(?!<\\/?im\\b)[\\s\\S])*?<\\/im>|(?:<date>[\\s\\S]*?<\\/date>|<sys\\s+time=\"(?:[01]\\d|2[0-3]):[0-5]\\d\"\\s*>[\\s\\S]*?<\\/sys>)))*)/gi",
+    "replaceString": "<style>.im-chat{display:block;width:100%;min-width:0;box-sizing:border-box;padding:0 10px 12px;margin:10px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;text-shadow:none;}.im-chat .im-contact{display:flex;flex-direction:column;align-items:center;gap:4px;margin:0 0 24px;padding:6px 0 0;}.im-chat .im-contact-avatar{display:grid;place-items:center;width:54px;height:54px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(145deg,#77718c,#48405f);color:#fff;font-size:26px;font-weight:600;line-height:1;}.im-chat .im-contact-initial,.im-chat .im-contact-image{grid-area:1/1;}.im-chat .im-contact-user-image{display:none!important;}.im-chat[data-contact=\"user\"] .im-contact-user-image{display:block!important;}.im-chat[data-contact=\"user\"] .im-contact-char-image{display:none;}.im-chat .im-contact-image{display:block;width:54px;height:54px;max-width:none;margin:0;border:0;border-radius:50%;object-fit:cover;}.im-chat[data-contact=\"npc\"] .im-contact-image{display:none;}.im-chat .im-contact-label{display:flex;align-items:center;gap:5px;max-width:100%;padding:4px 12px;border-radius:999px;background:rgba(88,86,92,.72);color:#fff;font-size:13px;font-weight:600;line-height:18px;}.im-chat .im-contact-name{overflow-wrap:anywhere;}.im-chat .im-contact-name:empty::before,.im-chat .im-contact-initial:empty::before{content:\"{{char}}\";}.im-chat .im-contact-chevron{font-size:20px;line-height:14px;opacity:.55;font-weight:500;}.im-chat .im-date{margin:18px 0 12px!important;}.im-chat .im-message,.im-chat .im-content{min-width:0;}.im-chat .im-bubble,.im-chat .im-voice>summary{box-shadow:none!important;-webkit-text-fill-color:currentColor;}.im-chat .im-bubble{font-weight:var(--im-font-weight,400);text-align:left;}.im-chat .im-bubble,.im-chat .im-voice>summary{opacity:1!important;outline:none;outline-offset:0;}.im-chat .im-bubble>span:not(.im-glass-surface):not(.im-quote-outline),.im-chat .im-voice>summary>span,.im-chat .im-voice>summary>span>span{color:var(--im-color,#fff)!important;-webkit-text-fill-color:var(--im-color,#fff)!important;opacity:1!important;text-shadow:none!important;}.im-chat .im-glass-surface{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;}.im-chat .im-sequence{display:flex;flex-direction:column;gap:4px;margin:0 0 8px;}.im-chat .im-sequence>.im-entry>.im-message{margin:0!important;}.im-chat .im-sequence>.im-entry:not(:first-child)>.im-timestamp,.im-chat .im-sequence>.im-entry:not(:first-child) .im-name{display:none!important;}.im-chat .im-sequence>.im-entry:not(:last-child)>.im-message>.im-content>.im-bubble,.im-chat .im-sequence>.im-entry:not(:last-child)>.im-message>.im-content>.im-translation>.im-bubble,.im-chat .im-sequence>.im-entry:not(:last-child)>.im-message>.im-content>details.im-voice>summary{--im-tail-mask:linear-gradient(transparent,transparent);}.im-chat .im-date+.im-entry>.im-timestamp,.im-chat .im-date+style+.im-sequence>.im-entry:first-child>.im-timestamp,.im-chat .im-date+.im-sequence>.im-entry:first-child>.im-timestamp{display:none!important;}.im-chat{--im-auto-incoming-bg:rgba(80,80,88,.52);--im-auto-incoming-color:#fff;--im-auto-own-quote-bg:#fff;--im-auto-own-quote-color:#3294ff;--im-auto-own-quote-border:#a1c9ff;}@supports(color:rgb(from white r g b)){.im-chat{--im-auto-incoming-bg:rgb(from var(--SmartThemeBodyColor,#fff) calc(48 + 32 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(48 + 32 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(52 + 36 * clamp(0, calc((r + g + b - 540) / 60), 1)) / calc(.12 + .40 * clamp(0, calc((r + g + b - 540) / 60), 1)));--im-auto-incoming-color:rgb(from var(--SmartThemeBodyColor,#fff) calc(28 + 227 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(28 + 227 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(30 + 225 * clamp(0, calc((r + g + b - 540) / 60), 1)));--im-auto-own-quote-bg:rgb(from var(--SmartThemeBodyColor,#8e8e93) calc(255 * (1 - clamp(0, calc((r + g + b - 540) / 60), 1))) calc(255 - 86 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(255 - 11 * clamp(0, calc((r + g + b - 540) / 60), 1)));--im-auto-own-quote-color:rgb(from var(--SmartThemeBodyColor,#8e8e93) calc(50 + 205 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(148 + 107 * clamp(0, calc((r + g + b - 540) / 60), 1)) 255);--im-auto-own-quote-border:rgb(from var(--SmartThemeBodyColor,#8e8e93) 161 201 255 / calc(1 - clamp(0, calc((r + g + b - 540) / 60), 1)));}}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"user\"]{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;--tail-l:block!important;--tail-r:none!important;--im-tail:rgba(35,44,60,.58)!important;--im-radius:22px!important;--im-align:flex-start!important;--im-margin-left:0!important;--im-margin-right:auto!important;--im-bg:var(--im-incoming-bg,var(--im-auto-incoming-bg,rgba(48,48,52,.52)))!important;--im-border:rgba(255,255,255,.14)!important;--im-color:var(--im-incoming-color,var(--im-auto-incoming-color,#fff))!important;--im-font-weight:400!important;justify-content:flex-start!important;}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"user\"]>.im-content{align-items:flex-start!important;}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"char\"]{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%20transform%3D%22translate(24%200)%20scale(-1%201)%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:right 7px bottom 0px!important;--tail-l:none!important;--tail-r:block!important;--im-tail:rgba(0,104,230,.64)!important;--im-radius:22px!important;--im-align:flex-end!important;--im-margin-left:auto!important;--im-margin-right:0!important;--im-bg:#00a9f4!important;--im-border:rgba(255,255,255,.18)!important;--im-color:#fff!important;--im-font-weight:500!important;justify-content:flex-end!important;}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"char\"]>.im-content{align-items:flex-end!important;}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"npc\"]{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;--tail-l:block!important;--tail-r:none!important;--im-tail:rgba(35,44,60,.58)!important;--im-radius:22px!important;--im-align:flex-start!important;--im-margin-left:0!important;--im-margin-right:auto!important;--im-bg:var(--im-incoming-bg,var(--im-auto-incoming-bg,rgba(48,48,52,.52)))!important;--im-border:rgba(255,255,255,.14)!important;--im-color:var(--im-incoming-color,var(--im-auto-incoming-color,#fff))!important;--im-font-weight:400!important;justify-content:flex-start!important;}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"npc\"]>.im-content{align-items:flex-start!important;}.im-chat .im-content:has(>.im-reply-thread){width:100%!important;max-width:100%!important;}.im-chat .im-reply-thread{position:relative;display:grid;grid-template-columns:minmax(0,1fr);width:100%;max-width:100%;min-width:0;gap:14px;align-self:stretch;box-sizing:border-box;}.im-chat .im-reply-quote{grid-area:1/1;justify-self:var(--reply-rail-align,start);width:fit-content;max-width:min(560px,84%);min-width:0;--im-bg:var(--im-reply-quote-bg,var(--SmartThemeBlurTintColor,#fff))!important;--im-color:var(--im-reply-quote-color,var(--SmartThemeBodyColor,#8e8e93));--im-radius:18px;}.im-chat .im-reply-quote>.im-bubble{padding:5px 11px!important;font-size:13px!important;line-height:1.4!important;color:var(--im-color);}.im-chat .im-reply-quote .im-quote-outline{filter:drop-shadow(.6px 0 0 var(--im-reply-quote-border,rgba(142,142,147,.35))) drop-shadow(-.6px 0 0 var(--im-reply-quote-border,rgba(142,142,147,.35))) drop-shadow(0 .6px 0 var(--im-reply-quote-border,rgba(142,142,147,.35))) drop-shadow(0 -.6px 0 var(--im-reply-quote-border,rgba(142,142,147,.35)));}.im-chat .im-reply-response{grid-area:2/1;position:relative;z-index:1;display:flex;flex-direction:column;align-items:var(--im-align,flex-start);width:fit-content;max-width:min(560px,84%);min-width:0;min-height:40px;margin-left:var(--im-margin-left,0);margin-right:var(--im-margin-right,auto);padding:0;box-sizing:border-box;}.im-chat .im-reply-connector{grid-area:2/1;justify-self:var(--reply-rail-align,start);align-self:stretch;display:block;width:36px;min-height:26px;margin:0 17px 5px;border-left:var(--reply-left-width,3px) solid var(--im-reply-rail-color,color-mix(in srgb,var(--SmartThemeBlurTintColor,#707070) 85%,var(--SmartThemeBodyColor,#fff)));border-right:var(--reply-right-width,0px) solid var(--im-reply-rail-color,color-mix(in srgb,var(--SmartThemeBlurTintColor,#707070) 85%,var(--SmartThemeBodyColor,#fff)));border-bottom:3px solid var(--im-reply-rail-color,color-mix(in srgb,var(--SmartThemeBlurTintColor,#707070) 85%,var(--SmartThemeBodyColor,#fff)));border-radius:var(--reply-curve,0 0 0 28px);pointer-events:none;box-sizing:border-box;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"user\"]{--reply-rail-align:end;--reply-left-width:0px;--reply-right-width:3px;--reply-curve:0 0 28px 0;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"user\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%20transform%3D%22translate(24%200)%20scale(-1%201)%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:right 7px bottom 0px!important;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"user\"]>.im-reply-quote{--im-bg:var(--im-own-quote-bg,var(--im-auto-own-quote-bg,#fff))!important;--im-color:var(--im-own-quote-color,var(--im-auto-own-quote-color,#3294ff));--im-reply-quote-border:var(--im-own-quote-border,var(--im-auto-own-quote-border,#a1c9ff));}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"char\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"char\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"npc\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"npc\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"user\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"user\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"char\"]{--reply-rail-align:end;--reply-left-width:0px;--reply-right-width:3px;--reply-curve:0 0 28px 0;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"char\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%20transform%3D%22translate(24%200)%20scale(-1%201)%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:right 7px bottom 0px!important;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"char\"]>.im-reply-quote{--im-bg:var(--im-own-quote-bg,var(--im-auto-own-quote-bg,#fff))!important;--im-color:var(--im-own-quote-color,var(--im-auto-own-quote-color,#3294ff));--im-reply-quote-border:var(--im-own-quote-border,var(--im-auto-own-quote-border,#a1c9ff));}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"npc\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"npc\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}</style><div class=\"im-chat\" data-owner=\"user\" data-contact=\"$1\"><div class=\"im-contact\"><div class=\"im-contact-avatar\"><span class=\"im-contact-initial\" aria-hidden=\"true\">$2</span><img class=\"im-contact-image im-contact-char-image\" src=\"{{charAvatarPath}}\" alt=\"\"><img class=\"im-contact-image im-contact-user-image\" src=\"{{userAvatarPath}}\" alt=\"\"></div><div class=\"im-contact-label\"><span class=\"im-contact-name\">$2$3</span><span class=\"im-contact-chevron\" aria-hidden=\"true\">›</span></div></div>$4</div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "582c850d-ea29-4f70-9a03-ec9f230f8881",
+    "scriptName": "00b｜iMessage｜会话视角 · 手机主人与联系人",
+    "findRegex": "/<chat\\s+owner=\"(user|char)\"\\s+peer=\"(?!\\1\")(user|char|npc)\"\\s+name=\"([^\"])([^\"]*)\"\\s*>((?:(?!<\\/?chat\\b)[\\s\\S])*?)<\\/chat>/gi",
+    "replaceString": "<style>.im-chat{display:block;width:100%;min-width:0;box-sizing:border-box;padding:0 10px 12px;margin:10px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;text-shadow:none;}.im-chat .im-contact{display:flex;flex-direction:column;align-items:center;gap:4px;margin:0 0 24px;padding:6px 0 0;}.im-chat .im-contact-avatar{display:grid;place-items:center;width:54px;height:54px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(145deg,#77718c,#48405f);color:#fff;font-size:26px;font-weight:600;line-height:1;}.im-chat .im-contact-initial,.im-chat .im-contact-image{grid-area:1/1;}.im-chat .im-contact-user-image{display:none!important;}.im-chat[data-contact=\"user\"] .im-contact-user-image{display:block!important;}.im-chat[data-contact=\"user\"] .im-contact-char-image{display:none;}.im-chat .im-contact-image{display:block;width:54px;height:54px;max-width:none;margin:0;border:0;border-radius:50%;object-fit:cover;}.im-chat[data-contact=\"npc\"] .im-contact-image{display:none;}.im-chat .im-contact-label{display:flex;align-items:center;gap:5px;max-width:100%;padding:4px 12px;border-radius:999px;background:rgba(88,86,92,.72);color:#fff;font-size:13px;font-weight:600;line-height:18px;}.im-chat .im-contact-name{overflow-wrap:anywhere;}.im-chat .im-contact-name:empty::before,.im-chat .im-contact-initial:empty::before{content:\"{{char}}\";}.im-chat .im-contact-chevron{font-size:20px;line-height:14px;opacity:.55;font-weight:500;}.im-chat .im-date{margin:18px 0 12px!important;}.im-chat .im-message,.im-chat .im-content{min-width:0;}.im-chat .im-bubble,.im-chat .im-voice>summary{box-shadow:none!important;-webkit-text-fill-color:currentColor;}.im-chat .im-bubble{font-weight:var(--im-font-weight,400);text-align:left;}.im-chat .im-bubble,.im-chat .im-voice>summary{opacity:1!important;outline:none;outline-offset:0;}.im-chat .im-bubble>span:not(.im-glass-surface):not(.im-quote-outline),.im-chat .im-voice>summary>span,.im-chat .im-voice>summary>span>span{color:var(--im-color,#fff)!important;-webkit-text-fill-color:var(--im-color,#fff)!important;opacity:1!important;text-shadow:none!important;}.im-chat .im-glass-surface{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;}.im-chat .im-sequence{display:flex;flex-direction:column;gap:4px;margin:0 0 8px;}.im-chat .im-sequence>.im-entry>.im-message{margin:0!important;}.im-chat .im-sequence>.im-entry:not(:first-child)>.im-timestamp,.im-chat .im-sequence>.im-entry:not(:first-child) .im-name{display:none!important;}.im-chat .im-sequence>.im-entry:not(:last-child)>.im-message>.im-content>.im-bubble,.im-chat .im-sequence>.im-entry:not(:last-child)>.im-message>.im-content>.im-translation>.im-bubble,.im-chat .im-sequence>.im-entry:not(:last-child)>.im-message>.im-content>details.im-voice>summary{--im-tail-mask:linear-gradient(transparent,transparent);}.im-chat .im-date+.im-entry>.im-timestamp,.im-chat .im-date+style+.im-sequence>.im-entry:first-child>.im-timestamp,.im-chat .im-date+.im-sequence>.im-entry:first-child>.im-timestamp{display:none!important;}.im-chat{--im-auto-incoming-bg:rgba(80,80,88,.52);--im-auto-incoming-color:#fff;--im-auto-own-quote-bg:#fff;--im-auto-own-quote-color:#3294ff;--im-auto-own-quote-border:#a1c9ff;}@supports(color:rgb(from white r g b)){.im-chat{--im-auto-incoming-bg:rgb(from var(--SmartThemeBodyColor,#fff) calc(48 + 32 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(48 + 32 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(52 + 36 * clamp(0, calc((r + g + b - 540) / 60), 1)) / calc(.12 + .40 * clamp(0, calc((r + g + b - 540) / 60), 1)));--im-auto-incoming-color:rgb(from var(--SmartThemeBodyColor,#fff) calc(28 + 227 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(28 + 227 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(30 + 225 * clamp(0, calc((r + g + b - 540) / 60), 1)));--im-auto-own-quote-bg:rgb(from var(--SmartThemeBodyColor,#8e8e93) calc(255 * (1 - clamp(0, calc((r + g + b - 540) / 60), 1))) calc(255 - 86 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(255 - 11 * clamp(0, calc((r + g + b - 540) / 60), 1)));--im-auto-own-quote-color:rgb(from var(--SmartThemeBodyColor,#8e8e93) calc(50 + 205 * clamp(0, calc((r + g + b - 540) / 60), 1)) calc(148 + 107 * clamp(0, calc((r + g + b - 540) / 60), 1)) 255);--im-auto-own-quote-border:rgb(from var(--SmartThemeBodyColor,#8e8e93) 161 201 255 / calc(1 - clamp(0, calc((r + g + b - 540) / 60), 1)));}}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"user\"]{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;--tail-l:block!important;--tail-r:none!important;--im-tail:rgba(35,44,60,.58)!important;--im-radius:22px!important;--im-align:flex-start!important;--im-margin-left:0!important;--im-margin-right:auto!important;--im-bg:var(--im-incoming-bg,var(--im-auto-incoming-bg,rgba(48,48,52,.52)))!important;--im-border:rgba(255,255,255,.14)!important;--im-color:var(--im-incoming-color,var(--im-auto-incoming-color,#fff))!important;--im-font-weight:400!important;justify-content:flex-start!important;}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"user\"]>.im-content{align-items:flex-start!important;}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"char\"]{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%20transform%3D%22translate(24%200)%20scale(-1%201)%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:right 7px bottom 0px!important;--tail-l:none!important;--tail-r:block!important;--im-tail:rgba(0,104,230,.64)!important;--im-radius:22px!important;--im-align:flex-end!important;--im-margin-left:auto!important;--im-margin-right:0!important;--im-bg:#00a9f4!important;--im-border:rgba(255,255,255,.18)!important;--im-color:#fff!important;--im-font-weight:500!important;justify-content:flex-end!important;}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"char\"]>.im-content{align-items:flex-end!important;}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"npc\"]{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;--tail-l:block!important;--tail-r:none!important;--im-tail:rgba(35,44,60,.58)!important;--im-radius:22px!important;--im-align:flex-start!important;--im-margin-left:0!important;--im-margin-right:auto!important;--im-bg:var(--im-incoming-bg,var(--im-auto-incoming-bg,rgba(48,48,52,.52)))!important;--im-border:rgba(255,255,255,.14)!important;--im-color:var(--im-incoming-color,var(--im-auto-incoming-color,#fff))!important;--im-font-weight:400!important;justify-content:flex-start!important;}.im-chat[data-owner=\"char\"] .im-message[data-sender=\"npc\"]>.im-content{align-items:flex-start!important;}.im-chat .im-content:has(>.im-reply-thread){width:100%!important;max-width:100%!important;}.im-chat .im-reply-thread{position:relative;display:grid;grid-template-columns:minmax(0,1fr);width:100%;max-width:100%;min-width:0;gap:14px;align-self:stretch;box-sizing:border-box;}.im-chat .im-reply-quote{grid-area:1/1;justify-self:var(--reply-rail-align,start);width:fit-content;max-width:min(560px,84%);min-width:0;--im-bg:var(--im-reply-quote-bg,var(--SmartThemeBlurTintColor,#fff))!important;--im-color:var(--im-reply-quote-color,var(--SmartThemeBodyColor,#8e8e93));--im-radius:18px;}.im-chat .im-reply-quote>.im-bubble{padding:5px 11px!important;font-size:13px!important;line-height:1.4!important;color:var(--im-color);}.im-chat .im-reply-quote .im-quote-outline{filter:drop-shadow(.6px 0 0 var(--im-reply-quote-border,rgba(142,142,147,.35))) drop-shadow(-.6px 0 0 var(--im-reply-quote-border,rgba(142,142,147,.35))) drop-shadow(0 .6px 0 var(--im-reply-quote-border,rgba(142,142,147,.35))) drop-shadow(0 -.6px 0 var(--im-reply-quote-border,rgba(142,142,147,.35)));}.im-chat .im-reply-response{grid-area:2/1;position:relative;z-index:1;display:flex;flex-direction:column;align-items:var(--im-align,flex-start);width:fit-content;max-width:min(560px,84%);min-width:0;min-height:40px;margin-left:var(--im-margin-left,0);margin-right:var(--im-margin-right,auto);padding:0;box-sizing:border-box;}.im-chat .im-reply-connector{grid-area:2/1;justify-self:var(--reply-rail-align,start);align-self:stretch;display:block;width:36px;min-height:26px;margin:0 17px 5px;border-left:var(--reply-left-width,3px) solid var(--im-reply-rail-color,color-mix(in srgb,var(--SmartThemeBlurTintColor,#707070) 85%,var(--SmartThemeBodyColor,#fff)));border-right:var(--reply-right-width,0px) solid var(--im-reply-rail-color,color-mix(in srgb,var(--SmartThemeBlurTintColor,#707070) 85%,var(--SmartThemeBodyColor,#fff)));border-bottom:3px solid var(--im-reply-rail-color,color-mix(in srgb,var(--SmartThemeBlurTintColor,#707070) 85%,var(--SmartThemeBodyColor,#fff)));border-radius:var(--reply-curve,0 0 0 28px);pointer-events:none;box-sizing:border-box;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"user\"]{--reply-rail-align:end;--reply-left-width:0px;--reply-right-width:3px;--reply-curve:0 0 28px 0;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"user\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%20transform%3D%22translate(24%200)%20scale(-1%201)%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:right 7px bottom 0px!important;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"user\"]>.im-reply-quote{--im-bg:var(--im-own-quote-bg,var(--im-auto-own-quote-bg,#fff))!important;--im-color:var(--im-own-quote-color,var(--im-auto-own-quote-color,#3294ff));--im-reply-quote-border:var(--im-own-quote-border,var(--im-auto-own-quote-border,#a1c9ff));}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"char\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"char\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"npc\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"npc\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"user\"] .im-reply-thread[data-from=\"\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"user\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"user\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"char\"]{--reply-rail-align:end;--reply-left-width:0px;--reply-right-width:3px;--reply-curve:0 0 28px 0;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"char\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%20transform%3D%22translate(24%200)%20scale(-1%201)%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:right 7px bottom 0px!important;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"char\"]>.im-reply-quote{--im-bg:var(--im-own-quote-bg,var(--im-auto-own-quote-bg,#fff))!important;--im-color:var(--im-own-quote-color,var(--im-auto-own-quote-color,#3294ff));--im-reply-quote-border:var(--im-own-quote-border,var(--im-auto-own-quote-border,#a1c9ff));}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"npc\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"npc\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"\"]{--reply-rail-align:start;--reply-left-width:3px;--reply-right-width:0px;--reply-curve:0 0 0 28px;}.im-chat[data-owner=\"char\"] .im-reply-thread[data-from=\"\"]>.im-reply-quote{--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')!important;--im-tail-position:left 7px bottom 0px!important;}</style><div class=\"im-chat\" data-owner=\"$1\" data-contact=\"$2\"><div class=\"im-contact\"><div class=\"im-contact-avatar\"><span class=\"im-contact-initial\" aria-hidden=\"true\">$3</span><img class=\"im-contact-image im-contact-char-image\" src=\"{{charAvatarPath}}\" alt=\"\"><img class=\"im-contact-image im-contact-user-image\" src=\"{{userAvatarPath}}\" alt=\"\"></div><div class=\"im-contact-label\"><span class=\"im-contact-name\">$3$4</span><span class=\"im-contact-chevron\" aria-hidden=\"true\">›</span></div></div>$5</div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "66a92059-c9e7-45f0-9be3-3f9fe263fa33",
+    "scriptName": "01｜iMessage｜连续消息 · 同人末条短尾",
+    "findRegex": "/(<im\\s+sender=\"(user|char|npc)\"\\s+name=\"([^\"]+)\"\\s+time=\"(?:[01]\\d|2[0-3]):[0-5]\\d\"\\s*>(?:(?!<\\/?im\\b)[\\s\\S])*?<\\/im>(?:\\s*<im\\s+sender=\"\\2\"\\s+name=\"\\3\"\\s+time=\"(?:[01]\\d|2[0-3]):[0-5]\\d\"\\s*>(?:(?!<\\/?im\\b)[\\s\\S])*?<\\/im>)+)/gi",
+    "replaceString": "<div class=\"im-sequence\" style=\"width:100%;\">$1</div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "06f60a6f-588c-497d-a209-a3eab0888205",
+    "scriptName": "02｜iMessage｜文字预处理",
+    "findRegex": "/<im(\\s+sender=\"(?:user|char|npc)\"\\s+name=\"[^\"]+\"\\s+time=\"(?:[01]\\d|2[0-3]):[0-5]\\d\"\\s*)>(?!\\s*<(?:voice|photo|call|loc|red|pay|sticker|reply|video|file|link|trans)\\b)([\\s\\S]*?)<\\/im>/gi",
+    "replaceString": "<im$1><bubble>$2</bubble></im>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "a418d612-4b01-419d-8f0e-c1f4dc1f09eb",
+    "scriptName": "03｜iMessage｜引用回复 · 两侧贴边弧线",
+    "findRegex": "/<reply\\s+quote=\"([^\"]+)\"(?:\\s+from=\"(user|char|npc)\")?\\s*>([\\s\\S]*?)<\\/reply>/gi",
+    "replaceString": "<div class=\"im-reply-thread\" data-from=\"$2\"><div class=\"im-reply-quote\" aria-label=\"引用的原消息\"><div class=\"im-bubble\" style=\"position:relative;overflow:visible;isolation:isolate;width:fit-content;max-width:100%;border:0;border-radius:var(--im-radius,22px);background:transparent;box-shadow:none;color:var(--im-color,#fff);text-shadow:none;box-sizing:border-box;padding:8px 16px;font-size:17px;line-height:1.35;white-space:normal;\"><span class=\"im-quote-outline\" style=\"position:absolute;inset:0;pointer-events:none;\"><span class=\"im-glass-surface\" aria-hidden=\"true\" style=\"position:absolute;display:block;inset:0 0 -7px;pointer-events:none;background:var(--im-bg,#707070);-webkit-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20rx%3D%2222%22%20fill%3D%22white%22%2F%3E%3C%2Fsvg%3E') center top / 100% calc(100% - 7px) no-repeat,var(--im-tail-mask,url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')) var(--im-tail-position,left 7px bottom 0px) / 24px 24px no-repeat;mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20rx%3D%2222%22%20fill%3D%22white%22%2F%3E%3C%2Fsvg%3E') center top / 100% calc(100% - 7px) no-repeat,var(--im-tail-mask,url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')) var(--im-tail-position,left 7px bottom 0px) / 24px 24px no-repeat;-webkit-mask-composite:source-over;mask-composite:add;\"></span></span><span style=\"position:relative;z-index:1;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;\">$1</span></div></div><span class=\"im-reply-connector\" aria-hidden=\"true\"></span><div class=\"im-reply-response\"><bubble>$3</bubble></div></div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "6eb8c50d-b59f-4d1e-969d-817f7951cb7d",
+    "scriptName": "04｜iMessage｜外语文字 · 简体中文翻译",
+    "findRegex": "/<trans\\s+zh=\"([^\"]+)\"\\s*>([\\s\\S]*?)<\\/trans>/gi",
+    "replaceString": "<style>details.im-translation-toggle>summary::-webkit-details-marker{display:none!important;}details.im-translation-toggle>summary::marker{content:\"\";font-size:0;}details.im-translation-toggle>summary{list-style:none!important;}details.im-translation-toggle>summary:focus-visible{outline:2px solid #0a84ff;outline-offset:3px;border-radius:5px;}details.im-translation-toggle .im-translation-hide{display:none;}details.im-translation-toggle[open] .im-translation-show{display:none;}details.im-translation-toggle[open] .im-translation-hide{display:inline;}</style><div class=\"im-translation\" style=\"display:flex;flex-direction:column;align-items:var(--im-align,flex-start);align-self:var(--im-align,flex-start);width:fit-content;max-width:100%;min-width:0;\"><bubble>$2</bubble><details class=\"im-translation-toggle\" style=\"margin:6px 0 0;padding:0;max-width:100%;min-width:0;align-self:var(--im-align,flex-start);\"><summary style=\"display:block;list-style:none;cursor:pointer;padding:3px 4px;width:fit-content;margin-left:var(--im-margin-left,0);margin-right:var(--im-margin-right,auto);font-size:12px;line-height:18px;color:var(--SmartThemeBodyColor,#808080)!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;background:transparent!important;mix-blend-mode:normal!important;opacity:1!important;\"><span class=\"im-translation-show\">转为简体中文</span><span class=\"im-translation-hide\">收起翻译</span></summary><div class=\"im-translation-text\" lang=\"zh-Hans\" style=\"box-sizing:border-box;width:fit-content;max-width:min(340px,100%);margin-top:5px;padding:10px 13px;border:1px solid rgba(120,120,128,.22);border-radius:14px;background:rgba(245,245,247,.94);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);color:#343438;-webkit-text-fill-color:currentColor;text-shadow:none;font-size:14px;line-height:1.5;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;\">$1</div></details></div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "ec3f97d6-8177-49f3-8f50-b511c26fa464",
+    "scriptName": "05｜iMessage｜语音消息",
+    "findRegex": "/<voice\\s+sec=\"((?:[1-9]|[1-5]\\d|60))\"\\s*>([\\s\\S]*?)<\\/voice>/gi",
+    "replaceString": "<style>details.im-voice>summary::-webkit-details-marker{display:none!important;}details.im-voice>summary::marker{content:\"\";font-size:0;}details.im-voice>summary{list-style:none!important;}details.im-voice>summary:focus-visible{outline:2px solid #0a84ff;outline-offset:4px;border-radius:21px;}</style><details class=\"im-voice\" style=\"margin:0;padding:0;width:fit-content;max-width:100%;align-self:var(--im-align,flex-start);text-align:left;\"><summary aria-label=\"展开或收起语音转写，$1秒\" style=\"position:relative;overflow:visible;isolation:isolate;width:fit-content;max-width:100%;border:0;border-radius:var(--im-radius,22px);background:transparent;box-shadow:none;color:var(--im-color,#fff);text-shadow:none;box-sizing:border-box;display:block;width:206px;max-width:100%;min-width:0;margin:0;margin-left:var(--im-margin-left,0);margin-right:var(--im-margin-right,auto);padding:12px 15px;cursor:pointer;list-style:none!important;\"><span class=\"im-glass-surface\" aria-hidden=\"true\" style=\"position:absolute;display:block;inset:0 0 -7px;pointer-events:none;background:var(--im-bg,#707070);-webkit-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20rx%3D%2222%22%20fill%3D%22white%22%2F%3E%3C%2Fsvg%3E') center top / 100% calc(100% - 7px) no-repeat,var(--im-tail-mask,url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')) var(--im-tail-position,left 7px bottom 0px) / 24px 24px no-repeat;mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20rx%3D%2222%22%20fill%3D%22white%22%2F%3E%3C%2Fsvg%3E') center top / 100% calc(100% - 7px) no-repeat,var(--im-tail-mask,url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')) var(--im-tail-position,left 7px bottom 0px) / 24px 24px no-repeat;-webkit-mask-composite:source-over;mask-composite:add;\"></span><span style=\"position:relative;z-index:1;display:flex;align-items:center;gap:12px;\"><span aria-hidden=\"true\" style=\"display:flex;align-items:center;gap:3px;height:22px;opacity:.95;\"><span style=\"display:block;flex:0 0 3px;width:3px;height:6px;border-radius:99px;background:currentColor;\"></span><span style=\"display:block;flex:0 0 3px;width:3px;height:11px;border-radius:99px;background:currentColor;\"></span><span style=\"display:block;flex:0 0 3px;width:3px;height:17px;border-radius:99px;background:currentColor;\"></span><span style=\"display:block;flex:0 0 3px;width:3px;height:13px;border-radius:99px;background:currentColor;\"></span><span style=\"display:block;flex:0 0 3px;width:3px;height:20px;border-radius:99px;background:currentColor;\"></span><span style=\"display:block;flex:0 0 3px;width:3px;height:10px;border-radius:99px;background:currentColor;\"></span><span style=\"display:block;flex:0 0 3px;width:3px;height:15px;border-radius:99px;background:currentColor;\"></span><span style=\"display:block;flex:0 0 3px;width:3px;height:7px;border-radius:99px;background:currentColor;\"></span></span><span style=\"margin-left:auto;flex-shrink:0;font-size:14px;line-height:1;opacity:.92;\">$1″</span></span></summary><div class=\"im-transcript\" style=\"width:fit-content;max-width:min(290px,100%);margin-top:8px;margin-left:var(--im-margin-left,0);margin-right:var(--im-margin-right,auto);padding:10px 13px;border:1px solid rgba(255,255,255,.36);border-radius:14px;background:rgba(245,245,247,.88);-webkit-backdrop-filter:blur(22px) saturate(150%);backdrop-filter:blur(22px) saturate(150%);box-shadow:inset 0 1px 0 rgba(255,255,255,.38),0 3px 10px rgba(0,0,0,.07);color:#343438;font-size:14px;line-height:1.5;text-align:left;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;box-sizing:border-box;\">$2</div></details>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "6ba3a9d4-12cf-44f0-a002-478dc12dc46b",
+    "scriptName": "06｜iMessage｜图片消息",
+    "findRegex": "/<photo>([\\s\\S]*?)<\\/photo>/gi",
+    "replaceString": "<div style=\"width:min(280px,100%);overflow:hidden;border:1px solid rgba(255,255,255,.22);border-radius:19px;background:rgba(45,50,58,.48);-webkit-backdrop-filter:blur(24px) saturate(155%);backdrop-filter:blur(24px) saturate(155%);box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 8px 24px rgba(0,0,0,.14);box-sizing:border-box;\">\n<div style=\"height:118px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,rgba(255,255,255,.14),rgba(255,255,255,.03));color:rgba(255,255,255,.86);\">\n<svg width=\"38\" height=\"38\" viewBox=\"0 0 24 24\" fill=\"none\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"3\" stroke=\"currentColor\" stroke-width=\"1.6\"/><circle cx=\"9\" cy=\"10\" r=\"2\" stroke=\"currentColor\" stroke-width=\"1.6\"/><path d=\"M5.5 18l4.5-4.5 3.2 3.2 2.3-2.3 3 3.6\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>\n</div>\n<div style=\"padding:10px 12px;color:rgba(255,255,255,.93);font-size:13px;line-height:1.45;text-align:left;\">$1</div>\n</div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "9edb1d6e-bcf8-49bd-b6e7-1bea528440c5",
+    "scriptName": "07｜iMessage｜视频消息",
+    "findRegex": "/<video\\s*>([\\s\\S]*?)<\\/video>/gi",
+    "replaceString": "<div class=\"im-video-card\" style=\"width:280px;max-width:100%;overflow:hidden;border:1px solid rgba(255,255,255,.42);border-radius:19px;background:linear-gradient(145deg,rgba(250,252,255,.92),rgba(229,235,245,.86));-webkit-backdrop-filter:blur(26px) saturate(165%);backdrop-filter:blur(26px) saturate(165%);box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 6px 20px rgba(10,19,36,.11);color:#273449;text-align:left;white-space:normal;overflow-wrap:anywhere;box-sizing:border-box;\"><div style=\"position:relative;height:112px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 25% 0%,rgba(255,255,255,.26),transparent 65%),linear-gradient(145deg,rgba(78,97,137,.82),rgba(28,45,73,.90));\"><span style=\"width:44px;height:44px;border:1px solid rgba(255,255,255,.55);border-radius:50%;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:#fff;\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"26\" height=\"26\" viewBox=\"0 0 24 24\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\" style=\"display:block;flex-shrink:0;width:26px;height:26px;\"><path d=\"M9 6.5L17 12L9 17.5V6.5Z\" fill=\"currentColor\"/></svg></span><span style=\"position:absolute;left:12px;bottom:9px;color:rgba(255,255,255,.9);font-size:11px;line-height:16px;\">视频</span></div><div style=\"padding:11px 13px;font-size:13px;line-height:1.5;white-space:pre-wrap;\">$1</div></div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "d1fd1d3d-03c6-4fba-84f7-c4e61df05c2d",
+    "scriptName": "08｜iMessage｜文件卡片",
+    "findRegex": "/<file\\s+name=\"([^\"]+)\"(?:\\s+size=\"([^\"]*)\")?\\s*>([\\s\\S]*?)<\\/file>/gi",
+    "replaceString": "<div class=\"im-file-card\" style=\"width:280px;max-width:100%;overflow:hidden;border:1px solid rgba(255,255,255,.42);border-radius:19px;background:linear-gradient(145deg,rgba(250,252,255,.92),rgba(229,235,245,.86));-webkit-backdrop-filter:blur(26px) saturate(165%);backdrop-filter:blur(26px) saturate(165%);box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 6px 20px rgba(10,19,36,.11);color:#273449;text-align:left;white-space:normal;overflow-wrap:anywhere;box-sizing:border-box;padding:14px;display:flex;align-items:flex-start;gap:12px;\"><div style=\"width:42px;height:50px;flex:0 0 42px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(10,132,255,.10);color:#1875d2;\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 24 24\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\" style=\"display:block;flex-shrink:0;width:32px;height:32px;\"><path d=\"M6 3H14L19 8V21H6V3Z\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/><path d=\"M14 3V8H19M9 12H16M9 16H14\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></div><div style=\"min-width:0;flex:1;\"><div style=\"font-size:14px;font-weight:600;line-height:1.4;overflow-wrap:anywhere;\">$1</div><div style=\"margin-top:4px;color:#536077;font-size:12px;line-height:1.45;white-space:pre-wrap;\">$3</div><div style=\"margin-top:3px;color:#59667b;font-size:11px;line-height:1.4;\">$2</div></div></div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "ab4db6f0-33c7-498c-b82a-26d89947bbc1",
+    "scriptName": "09｜iMessage｜链接预览",
+    "findRegex": "/<link\\s+title=\"([^\"]+)\"\\s+source=\"([^\"]+)\"\\s*>([\\s\\S]*?)<\\/link>/gi",
+    "replaceString": "<div class=\"im-link-card\" style=\"width:280px;max-width:100%;overflow:hidden;border:1px solid rgba(255,255,255,.42);border-radius:19px;background:linear-gradient(145deg,rgba(250,252,255,.92),rgba(229,235,245,.86));-webkit-backdrop-filter:blur(26px) saturate(165%);backdrop-filter:blur(26px) saturate(165%);box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 6px 20px rgba(10,19,36,.11);color:#273449;text-align:left;white-space:normal;overflow-wrap:anywhere;box-sizing:border-box;\"><div style=\"height:92px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 25% 0%,rgba(255,255,255,.75),transparent 70%),linear-gradient(135deg,rgba(130,182,237,.30),rgba(142,154,221,.18));color:#5477a8;\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"34\" height=\"34\" viewBox=\"0 0 24 24\" fill=\"none\" aria-hidden=\"true\" focusable=\"false\" style=\"display:block;flex-shrink:0;width:34px;height:34px;\"><circle cx=\"12\" cy=\"12\" r=\"9\" stroke=\"currentColor\" stroke-width=\"1.4\"/><ellipse cx=\"12\" cy=\"12\" rx=\"4\" ry=\"9\" stroke=\"currentColor\" stroke-width=\"1.4\"/><path d=\"M3 12H21M5 6.5H19M5 17.5H19\" stroke=\"currentColor\" stroke-width=\"1.2\"/></svg></div><div style=\"padding:11px 13px;\"><div style=\"font-size:14px;font-weight:600;line-height:1.4;\">$1</div><div style=\"margin-top:5px;color:#536077;font-size:12px;line-height:1.5;white-space:pre-wrap;\">$3</div><div style=\"margin-top:10px;padding-top:7px;border-top:1px solid rgba(77,99,132,.15);color:#59667b;font-size:11px;line-height:1.4;\">$2</div></div></div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "786c807e-f68b-493a-b467-4b82c5687a72",
+    "scriptName": "10｜iMessage｜表情贴纸 · 名称库",
+    "findRegex": "/<sticker(?=[\\s>][\\s\\S]*?(占有欲犯了|想听甜言蜜语|想我了宝宝？|邪恶笑|力竭|住嘴|最烦装逼的人|被看扁了|小狗得志|我要告状|help咪|看你生气|对我态度好点有老婆不容易|在干嘛|思索|逃窜|找人弄你|小宝贝呢|小狗求亲|小狗问咄咄逼人？|滴眼药水\\(装可怜\\)|滴完眼药水哭了\\(装可怜\\)|当然|比格欢呼|你是好小狗|胆子肥|鼓掌|痛哭|亲亲|差不多得了|小狗卖萌|伤心小猫|摇头叹气)(?:\"\\s*>|\\s*<\\/sticker>))(?:\\s*>\\s*(?:占有欲犯了|想听甜言蜜语|想我了宝宝？|邪恶笑|力竭|住嘴|最烦装逼的人|被看扁了|小狗得志|我要告状|help咪|看你生气|对我态度好点有老婆不容易|在干嘛|思索|逃窜|找人弄你|小宝贝呢|小狗求亲|小狗问咄咄逼人？|滴眼药水\\(装可怜\\)|滴完眼药水哭了\\(装可怜\\)|当然|比格欢呼|你是好小狗|胆子肥|鼓掌|痛哭|亲亲|差不多得了|小狗卖萌|伤心小猫|摇头叹气)\\s*|\\s+(?:src|name)=\"(?:占有欲犯了|想听甜言蜜语|想我了宝宝？|邪恶笑|力竭|住嘴|最烦装逼的人|被看扁了|小狗得志|我要告状|help咪|看你生气|对我态度好点有老婆不容易|在干嘛|思索|逃窜|找人弄你|小宝贝呢|小狗求亲|小狗问咄咄逼人？|滴眼药水\\(装可怜\\)|滴完眼药水哭了\\(装可怜\\)|当然|比格欢呼|你是好小狗|胆子肥|鼓掌|痛哭|亲亲|差不多得了|小狗卖萌|伤心小猫|摇头叹气)\"\\s*>\\s*)<\\/sticker>/gi",
+    "replaceString": "<style>.im-sticker[data-name=\"占有欲犯了\"]{background-image:url(\"https://iili.io/nISJpcP.md.png\");}.im-sticker[data-name=\"想听甜言蜜语\"]{background-image:url(\"https://iili.io/nISziru.md.png\");}.im-sticker[data-name=\"想我了宝宝？\"]{background-image:url(\"https://iili.io/nISIOCP.png\");}.im-sticker[data-name=\"邪恶笑\"]{background-image:url(\"https://iili.io/nISTfcu.md.png\");}.im-sticker[data-name=\"力竭\"]{background-image:url(\"https://iili.io/nISuTb4.png\");}.im-sticker[data-name=\"住嘴\"]{background-image:url(\"https://iili.io/nISu6BI.md.png\");}.im-sticker[data-name=\"最烦装逼的人\"]{background-image:url(\"https://iili.io/nISAeGS.png\");}.im-sticker[data-name=\"被看扁了\"]{background-image:url(\"https://iili.io/nISAp9a.png\");}.im-sticker[data-name=\"小狗得志\"]{background-image:url(\"https://iili.io/nISRIol.md.png\");}.im-sticker[data-name=\"我要告状\"]{background-image:url(\"https://iili.io/nISRvxR.png\");}.im-sticker[data-name=\"help咪\"]{background-image:url(\"https://iili.io/nIS5XLl.png\");}.im-sticker[data-name=\"看你生气\"]{background-image:url(\"https://iili.io/nIS79Bp.png\");}.im-sticker[data-name=\"对我态度好点有老婆不容易\"]{background-image:url(\"https://iili.io/nISYlNs.png\");}.im-sticker[data-name=\"在干嘛\"]{background-image:url(\"https://iili.io/nISc16l.md.png\");}.im-sticker[data-name=\"思索\"]{background-image:url(\"https://iili.io/nISlmqx.png\");}.im-sticker[data-name=\"逃窜\"]{background-image:url(\"https://iili.io/nIS0kYB.png\");}.im-sticker[data-name=\"找人弄你\"]{background-image:url(\"https://iili.io/nISE0b9.png\");}.im-sticker[data-name=\"小宝贝呢\"]{background-image:url(\"https://iili.io/nISMsoX.png\");}.im-sticker[data-name=\"小狗求亲\"]{background-image:url(\"https://iili.io/nISWPGn.png\");}.im-sticker[data-name=\"小狗问咄咄逼人？\"]{background-image:url(\"https://iili.io/nIShnR4.png\");}.im-sticker[data-name=\"滴眼药水(装可怜)\"]{background-image:url(\"https://iili.io/nISw8KX.png\");}.im-sticker[data-name=\"滴完眼药水哭了(装可怜)\"]{background-image:url(\"https://iili.io/nISNRft.png\");}.im-sticker[data-name=\"当然\"]{background-image:url(\"https://iili.io/nISOaEP.png\");}.im-sticker[data-name=\"比格欢呼\"]{background-image:url(\"https://iili.io/nISO8yG.png\");}.im-sticker[data-name=\"你是好小狗\"]{background-image:url(\"https://iili.io/nISe1PS.md.png\");}.im-sticker[data-name=\"胆子肥\"]{background-image:url(\"https://iili.io/nISkRqB.png\");}.im-sticker[data-name=\"鼓掌\"]{background-image:url(\"https://iili.io/nIS8TKB.gif\");}.im-sticker[data-name=\"痛哭\"]{background-image:url(\"https://iili.io/nISSTXf.gif\");}.im-sticker[data-name=\"亲亲\"]{background-image:url(\"https://iili.io/nISSy42.gif\");}.im-sticker[data-name=\"差不多得了\"]{background-image:url(\"https://iili.io/nISr0mX.png\");}.im-sticker[data-name=\"小狗卖萌\"]{background-image:url(\"https://iili.io/nIS4PMG.gif\");}.im-sticker[data-name=\"伤心小猫\"]{background-image:url(\"https://iili.io/nIS645B.gif\");}.im-sticker[data-name=\"摇头叹气\"]{background-image:url(\"https://iili.io/nIS6D0v.gif\");}</style><span class=\"im-sticker\" data-name=\"$1\" title=\"$1\" role=\"img\" aria-label=\"$1\" style=\"display:block;width:138px;height:138px;max-width:100%;flex:0 0 auto;background-position:center;background-repeat:no-repeat;background-size:contain;background-color:transparent;filter:drop-shadow(0 3px 8px rgba(0,0,0,.10));\"></span>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "adb407cb-ff86-4a04-b9c2-a8783f1a467c",
+    "scriptName": "11｜iMessage｜表情贴纸 · 图片网址",
+    "findRegex": "/<sticker\\s+src=\"(https?:\\/\\/[^\"\\s<>]+)\"\\s*><\\/sticker>/gi",
+    "replaceString": "<img src=\"$1\" alt=\"表情\" style=\"display:block;width:auto;height:auto;max-width:138px;max-height:138px;object-fit:contain;border:0;background:transparent;filter:drop-shadow(0 5px 10px rgba(0,0,0,.12));\">",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "e80796d3-053a-4e8f-990c-2293da40e846",
+    "scriptName": "12｜iMessage｜位置分享",
+    "findRegex": "/<loc\\s+place=\"([^\"]+)\"\\s*>([\\s\\S]*?)<\\/loc>/gi",
+    "replaceString": "<div style=\"width:min(270px,100%);overflow:hidden;border:1px solid rgba(255,255,255,.24);border-radius:18px;background:rgba(225,229,235,.58);-webkit-backdrop-filter:blur(24px) saturate(150%);backdrop-filter:blur(24px) saturate(150%);box-shadow:0 8px 24px rgba(0,0,0,.12);color:#222;box-sizing:border-box;\">\n<div style=\"height:94px;position:relative;display:grid;place-items:center;background:repeating-linear-gradient(35deg,rgba(140,150,160,.10) 0 1px,transparent 1px 18px),repeating-linear-gradient(125deg,rgba(140,150,160,.09) 0 1px,transparent 1px 22px),rgba(242,244,247,.58);\">\n<div style=\"width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:grid;place-items:center;background:rgba(255,59,48,.92);box-shadow:0 4px 12px rgba(0,0,0,.16);\">\n<span style=\"width:11px;height:11px;border-radius:50%;background:white;transform:rotate(45deg);\"></span>\n</div>\n</div>\n<div style=\"padding:9px 12px 10px;text-align:left;\">\n<div style=\"font-size:14px;font-weight:600;\">$1</div>\n<div style=\"margin-top:3px;color:#7b7b80;font-size:12px;\">$2</div>\n</div>\n</div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "dc8ee4f1-6338-4627-b58b-8df5257fe7e4",
+    "scriptName": "13｜iMessage｜红包",
+    "findRegex": "/<red\\s+state=\"([^\"]+)\"\\s*>([\\s\\S]*?)<\\/red>/gi",
+    "replaceString": "<div style=\"width:238px;max-width:100%;overflow:hidden;border:1px solid rgba(255,255,255,.16);border-radius:20px;background:linear-gradient(180deg,rgba(255,106,93,.92),rgba(214,66,57,.82));-webkit-backdrop-filter:blur(22px) saturate(155%);backdrop-filter:blur(22px) saturate(155%);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 7px 20px rgba(0,0,0,.13);color:#fff;box-sizing:border-box;\">\n<div style=\"display:flex;align-items:center;gap:12px;padding:14px;\">\n<div style=\"width:40px;height:40px;flex:0 0 40px;border-radius:12px;display:grid;place-items:center;background:rgba(255,221,126,.96);color:#c23d36;font-size:20px;font-weight:700;\">¥</div>\n<div style=\"min-width:0;text-align:left;\">\n<div style=\"font-size:14px;line-height:1.4;\">$2</div>\n<div style=\"margin-top:4px;color:rgba(255,255,255,.70);font-size:11px;\">$1</div>\n</div>\n</div>\n<div style=\"padding:6px 12px;border-top:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.56);font-size:10px;text-align:left;\">红包</div>\n</div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "67dfb777-cc4d-414e-8bea-d61682c2f51a",
+    "scriptName": "14｜iMessage｜转账",
+    "findRegex": "/<pay\\s+amount=\"(\\d+\\.\\d{2})\"\\s+state=\"([^\"]+)\"\\s*>([\\s\\S]*?)<\\/pay>/gi",
+    "replaceString": "<div style=\"width:242px;max-width:100%;padding:14px;border:1px solid rgba(255,255,255,.18);border-radius:22px;background:linear-gradient(180deg,rgba(112,205,186,.84),rgba(78,178,164,.74));-webkit-backdrop-filter:blur(22px) saturate(155%);backdrop-filter:blur(22px) saturate(155%);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 7px 20px rgba(0,0,0,.12);color:#fff;text-align:left;box-sizing:border-box;\">\n<div style=\"color:rgba(255,255,255,.66);font-size:11px;\">转账</div>\n<div style=\"margin-top:4px;font-size:26px;font-weight:600;letter-spacing:-.5px;\">¥$1</div>\n<div style=\"margin-top:9px;font-size:14px;\">$3</div>\n<div style=\"margin-top:4px;color:rgba(255,255,255,.64);font-size:11px;\">$2</div>\n</div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "3efe6ada-bd16-4780-ac2f-dc0253ab68da",
+    "scriptName": "15｜iMessage｜语音／视频通话",
+    "findRegex": "/<call\\s+(?:type=\"(语音|视频)\"\\s+)?state=\"(呼入|呼出|通话中|已结束|未接通)\"\\s*>([\\s\\S]*?)<\\/call>/gi",
+    "replaceString": "<style>.im-call .im-call-video{display:none!important;}.im-call[data-call-type=\"视频\"] .im-call-video{display:block!important;}.im-call[data-call-type=\"视频\"] .im-call-phone{display:none!important;}.im-call[data-call-type=\"\"] .im-call-kind{display:none!important;}</style><div class=\"im-call\" data-call-type=\"$1\" style=\"position:relative;display:flex;align-items:center;gap:12px;width:240px;min-width:0;max-width:100%;padding:11px 14px;border:1px solid rgba(255,255,255,.22);border-radius:18px;background:rgba(53,58,67,.56);-webkit-backdrop-filter:blur(26px) saturate(160%);backdrop-filter:blur(26px) saturate(160%);box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 7px 22px rgba(0,0,0,.13);color:#fff;box-sizing:border-box;\">\n<div style=\"width:34px;height:34px;flex:0 0 34px;border-radius:50%;display:grid;place-items:center;background:rgba(52,199,89,.88);\">\n<svg class=\"im-call-phone\" aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M7.4 3.8l2.1 4.1-1.7 1.7c1.3 2.6 3.4 4.7 6 6l1.7-1.7 4.1 2.1c.4.2.6.6.5 1-.4 2.2-2.2 3.8-4.4 3.8C8.8 20.8 3.2 15.2 3.2 8.3c0-2.2 1.6-4 3.8-4.4.1 0 .3 0 .4-.1z\" fill=\"#fff\"/></svg><svg class=\"im-call-video\" aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" style=\"display:none;\"><rect x=\"3\" y=\"6\" width=\"12\" height=\"12\" rx=\"3\" fill=\"#fff\"/><path d=\"M16 10L20.5 7.5Q22 6.8 22 8.5V15.5Q22 17.2 20.5 16.5L16 14Z\" fill=\"#fff\"/></svg>\n</div>\n<div style=\"min-width:0;flex:1;text-align:left;\">\n<div style=\"font-size:15px;line-height:1.35;\"><span class=\"im-call-kind\">$1通话 · </span>$3</div>\n<div style=\"margin-top:3px;color:rgba(255,255,255,.58);font-size:12px;\">$2</div>\n</div>\n</div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "03e22482-568d-47da-90d1-289c9e5204a3",
+    "scriptName": "16｜iMessage｜文字气泡 · 圆润短尾",
+    "findRegex": "/<bubble>([\\s\\S]*?)<\\/bubble>/gi",
+    "replaceString": "<div class=\"im-bubble\" style=\"position:relative;overflow:visible;isolation:isolate;width:fit-content;max-width:100%;border:0;border-radius:var(--im-radius,22px);background:transparent;box-shadow:none;color:var(--im-color,#fff);text-shadow:none;box-sizing:border-box;padding:8px 16px;font-size:17px;line-height:1.35;white-space:normal;\"><span class=\"im-glass-surface\" aria-hidden=\"true\" style=\"position:absolute;display:block;inset:0 0 -7px;pointer-events:none;background:var(--im-bg,#707070);-webkit-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20rx%3D%2222%22%20fill%3D%22white%22%2F%3E%3C%2Fsvg%3E') center top / 100% calc(100% - 7px) no-repeat,var(--im-tail-mask,url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')) var(--im-tail-position,left 7px bottom 0px) / 24px 24px no-repeat;mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20rx%3D%2222%22%20fill%3D%22white%22%2F%3E%3C%2Fsvg%3E') center top / 100% calc(100% - 7px) no-repeat,var(--im-tail-mask,url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E')) var(--im-tail-position,left 7px bottom 0px) / 24px 24px no-repeat;-webkit-mask-composite:source-over;mask-composite:add;\"></span><span style=\"position:relative;z-index:1;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;\">$1</span></div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "8637a66c-a8d3-428b-86b5-d08b8457bfff",
+    "scriptName": "17｜iMessage｜系统提示 · 通用底色",
+    "findRegex": "/<sys\\s+time=\"((?:[01]\\d|2[0-3]):[0-5]\\d)\"\\s*>([\\s\\S]*?)<\\/sys>/gi",
+    "replaceString": "<div class=\"im-system\" style=\"width:100%;margin:13px 0;text-align:center;box-sizing:border-box;\"><span style=\"display:inline-block;max-width:calc(100% - 24px);padding:5px 12px;border:1px solid rgba(255,255,255,.42);border-radius:18px;background:rgba(245,247,252,.86);-webkit-backdrop-filter:blur(20px) saturate(140%);backdrop-filter:blur(20px) saturate(140%);box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 2px 8px rgba(12,18,32,.08);color:#4b5361;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;font-weight:500;line-height:18px;white-space:pre-wrap;overflow-wrap:anywhere;box-sizing:border-box;\">$1 · $2</span></div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "8fa76db3-e492-407b-aa18-fbcfd3e4f6cf",
+    "scriptName": "18｜iMessage｜日期分隔 · 主题文字色",
+    "findRegex": "/<date\\s*>([^<>]+)<\\/date>/gi",
+    "replaceString": "<style>.im-date,.im-entry>.im-timestamp{color:var(--SmartThemeBodyColor,#808080)!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;background:transparent!important;mix-blend-mode:normal!important;opacity:1!important;}.im-date+.im-entry>.im-timestamp,.im-date+.im-sequence>.im-entry:first-child>.im-timestamp,.im-date+style+.im-sequence>.im-entry:first-child>.im-timestamp{display:none!important;}</style><div class=\"im-date\" style=\"width:100%;margin:16px 0 12px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:12px;font-weight:600;line-height:18px;\">$1</div>",
+    "trimStrings": [],
+    "placement": [
+      1,
+      2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+  },
+  {
+    "id": "f1960643-4bf7-4aec-a7a1-df7336ad6cd4",
+    "scriptName": "19｜iMessage｜角色消息 · 跟随会话视角",
+    "disabled": false,
+    "runOnEdit": true,
+    "findRegex": "/<im\\s+sender=\"char\"\\s+name=\"([^\"]+)\"\\s+time=\"((?:[01]\\d|2[0-3]):[0-5]\\d)\"\\s*>([\\s\\S]*?)<\\/im>/gi",
+    "trimStrings": [],
+    "replaceString": "<div class=\"im-entry\" style=\"width:100%;box-sizing:border-box;\"><div class=\"im-timestamp\" style=\"width:100%;margin:10px 0 9px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;line-height:16px;color:var(--SmartThemeBodyColor,#808080)!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;background:transparent!important;mix-blend-mode:normal!important;opacity:1!important;\">$2</div><div class=\"im-message\" data-sender=\"char\" style=\"--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E');--im-tail-position:left 7px bottom 0px;--tail-l:block;--tail-r:none;--im-tail:rgba(35,44,60,.58);--im-radius:22px;--im-align:flex-start;--im-margin-left:0;--im-margin-right:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--im-bg:var(--im-incoming-bg,var(--im-auto-incoming-bg,rgba(48,48,52,.52)));--im-border:rgba(255,255,255,.14);--im-color:var(--im-incoming-color,var(--im-auto-incoming-color,#fff));--im-font-weight:400;display:flex;justify-content:flex-start;width:100%;margin:4px 0 8px;padding:0;box-sizing:border-box;\"><div class=\"im-content\" style=\"display:flex;flex-direction:column;align-items:flex-start;width:fit-content;max-width:min(560px,84%);min-width:0;\">$3</div></div></div>",
+    "placement": [
+      1,
+      2
+    ],
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null,
+    "markdownOnly": true,
+    "promptOnly": false
+  },
+  {
+    "id": "a103a6f6-30e6-47c0-a15b-fd5115d5540b",
+    "scriptName": "20｜iMessage｜NPC 消息 · 左侧",
+    "disabled": false,
+    "runOnEdit": true,
+    "findRegex": "/<im\\s+sender=\"npc\"\\s+name=\"([^\"])([^\"]*)\"\\s+time=\"((?:[01]\\d|2[0-3]):[0-5]\\d)\"\\s*>([\\s\\S]*?)<\\/im>/gi",
+    "trimStrings": [],
+    "replaceString": "<div class=\"im-entry\" style=\"width:100%;box-sizing:border-box;\"><div class=\"im-timestamp\" style=\"width:100%;margin:10px 0 9px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;line-height:16px;color:var(--SmartThemeBodyColor,#808080)!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;background:transparent!important;mix-blend-mode:normal!important;opacity:1!important;\">$3</div><div class=\"im-message\" data-sender=\"npc\" style=\"--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%2F%3E%3C%2Fsvg%3E');--im-tail-position:left 7px bottom 0px;--tail-l:block;--tail-r:none;--im-tail:rgba(35,44,60,.58);--im-radius:22px;--im-align:flex-start;--im-margin-left:0;--im-margin-right:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--im-bg:var(--im-incoming-bg,var(--im-auto-incoming-bg,rgba(48,48,52,.52)));--im-border:rgba(255,255,255,.14);--im-color:var(--im-incoming-color,var(--im-auto-incoming-color,#fff));--im-font-weight:400;display:flex;justify-content:flex-start;width:100%;margin:4px 0 8px;padding:0;box-sizing:border-box;\"><div class=\"im-content\" style=\"display:flex;flex-direction:column;align-items:flex-start;width:fit-content;max-width:min(560px,84%);min-width:0;\"><div class=\"im-name\" style=\"margin:0 12px 4px;color:var(--SmartThemeBodyColor,#808080);font-size:11px;line-height:16px;\">$1$2</div>$4</div></div></div>",
+    "placement": [
+      1,
+      2
+    ],
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null,
+    "markdownOnly": true,
+    "promptOnly": false
+  },
+  {
+    "id": "b35a0c02-4a16-4855-bd75-b088e0b22d24",
+    "scriptName": "21｜iMessage｜用户消息 · 跟随会话视角",
+    "disabled": false,
+    "runOnEdit": true,
+    "findRegex": "/<im\\s+sender=\"user\"\\s+name=\"([^\"]+)\"\\s+time=\"((?:[01]\\d|2[0-3]):[0-5]\\d)\"\\s*>([\\s\\S]*?)<\\/im>/gi",
+    "trimStrings": [],
+    "replaceString": "<div class=\"im-entry\" style=\"width:100%;box-sizing:border-box;\"><div class=\"im-timestamp\" style=\"width:100%;margin:10px 0 9px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;line-height:16px;color:var(--SmartThemeBodyColor,#808080)!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;background:transparent!important;mix-blend-mode:normal!important;opacity:1!important;\">$2</div><div class=\"im-message\" data-sender=\"user\" style=\"--im-tail-mask:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22white%22%20d%3D%22M0%200H24V13C17%2015%2012%2020%203%2023C1%2023.7%20.2%2023%20.9%2021.7C4%2017%204.5%2014%202.5%2010C1%207.2%20.2%203.5%200%200Z%22%20transform%3D%22translate(24%200)%20scale(-1%201)%22%2F%3E%3C%2Fsvg%3E');--im-tail-position:right 7px bottom 0px;--tail-l:none;--tail-r:block;--im-tail:rgba(0,104,230,.64);--im-radius:22px;--im-align:flex-end;--im-margin-left:auto;--im-margin-right:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--im-bg:#00a9f4;--im-border:rgba(255,255,255,.18);--im-color:#fff;--im-font-weight:500;display:flex;justify-content:flex-end;width:100%;margin:4px 0 8px;padding:0;box-sizing:border-box;\"><div class=\"im-content\" style=\"display:flex;flex-direction:column;align-items:flex-end;width:fit-content;max-width:min(560px,84%);min-width:0;\">$3</div></div></div>",
+    "placement": [
+      1,
+      2
+    ],
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null,
+    "markdownOnly": true,
+    "promptOnly": false
+  }
+]

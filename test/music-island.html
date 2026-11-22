@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Selene 音乐灵动岛 · 最小验证</title>
+<style>body{background:#171921;color:#eee;font:14px/1.6 system-ui;padding:24px}pre{white-space:pre-wrap;max-width:560px}button{padding:8px 12px;margin:4px}</style>
+<h1>音乐灵动岛协议模拟</h1>
+<p>仅加载已构建的小手机 UI；不启动账本、模型、剧情同步或真实播放器。</p>
+<button id="run">运行最小验证</button><button id="preview">恢复播放预览</button>
+<button id="run-v2">验证音乐 App v2</button>
+<button id="run-controls">验证歌词与播放选项</button>
+<pre id="report">准备中…</pre>
+<script>
+(async () => {
+    // Load the delivered artifact, substituting only its startup entry for test access.
+    const source = await (await fetch('../dist/Selene手机.js')).text();
+    (0, eval)(source.replace("load('./main.cjs').start(window);", "window.musicTestModules = { Phone: load('./ui.cjs').Phone, phoneSettings: load('./context.cjs').phoneSettings };"));
+    const { Phone, phoneSettings } = window.musicTestModules;
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const cover = color => {
+        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 32;
+        const context = canvas.getContext('2d'); context.fillStyle = color; context.fillRect(0, 0, 32, 32);
+        return canvas.toDataURL('image/png');
+    };
+    const pink = cover('#a82e76'), blue = cover('#32679c');
+    const calls = [], actions = [];
+    let phone, music, state, reads = 0;
+    const emit = patch => { state = { ...state, ...patch }; dispatchEvent(new CustomEvent('selene-music-playback-state', { detail: { ...state } })); };
+    const makeApi = () => ({
+        getPlaybackState() { reads++; return { ...state }; },
+        play() { calls.push(['play']); emit({ playing: true }); },
+        pause() { calls.push(['pause']); emit({ playing: false }); },
+        togglePlayback() { calls.push(['togglePlayback']); emit({ playing: !state.playing }); },
+        previousTrack() { calls.push(['previousTrack']); emit({ trackId: 'pink', title: 'Tidy tidy tidy ti', artist: 'Cjbeards/Marionette', artwork: pink, currentTime: 39 }); },
+        nextTrack() { calls.push(['nextTrack']); emit({ trackId: 'blue', title: 'Blue hour', artist: 'Selene', artwork: blue, currentTime: 0 }); },
+        seekTo(seconds) { calls.push(['seekTo', seconds]); emit({ currentTime: seconds }); },
+        setVisible(...args) { calls.push(['setVisible', ...args]); },
+    });
+    const create = (frame = window) => {
+        phone = new Phone(window, phoneSettings(), name => actions.push(name), () => '', frame);
+        music = phone.musicIsland; phone.open();
+        Object.assign(window.musicFixture, { phone, music });
+        return phone;
+    };
+    const resetState = () => { state = { protocolVersion: 1, loaded: true, trackId: 'pink', title: 'Tidy tidy tidy ti', artist: 'Cjbeards/Marionette', artwork: pink, playing: true, loading: false, currentTime: 39, duration: 122, playbackRate: 1 }; };
+    window.musicFixture = { calls, actions, emit, makeApi, delay };
+    window.runMusicSmoke = async () => {
+        const checks = [];
+        const check = (name, ok) => { if (!ok) throw new Error(name); checks.push(name); };
+        phone?.close(); delete window.__SELENE_MUSIC_PLAYER__; calls.length = actions.length = 0; reads = 0; resetState();
+        create();
+        check('无播放器：保留 83px 摄像头', !music.available() && !phone.camera.classList.contains('music-active'));
+        window.__SELENE_MUSIC_PLAYER__ = { setVisible() {} }; emit({});
+        check('旧接口：静默降级', !music.available());
+        window.__SELENE_MUSIC_PLAYER__ = makeApi(); emit({}); await delay(70);
+        check('后启动播放器：ROOT 事件自动连接、封面取色', music.available() && phone.camera.classList.contains('music-playing') && phone.camera.style.getPropertyValue('--music-color').includes('rgb'));
+        const pinkColor = phone.camera.style.getPropertyValue('--music-color');
+        phone.camera.click();
+        check('点击展开：卡片、真实曲名及总时长', !music.card.hidden && music.title.textContent === state.title && music.total.textContent === '2:02');
+        check('进度样式隔离', getComputedStyle(music.range).paddingLeft === '0px' && getComputedStyle(music.range).backgroundColor === 'rgba(0, 0, 0, 0)');
+        phone.camera.click(); check('再次点击收起', music.card.hidden);
+        phone.camera.click(); music.play.click(); await delay(20);
+        check('暂停：调用公开接口并立刻停音律', calls.at(-1)[0] === 'togglePlayback' && !phone.camera.classList.contains('music-playing'));
+        await delay(690); check('暂停后收缩，卡片可继续播放', !phone.camera.classList.contains('music-active') && !music.card.hidden);
+        music.play.click(); await delay(20);
+        check('继续播放：恢复展开', phone.camera.classList.contains('music-active'));
+        music.card.querySelector('[aria-label="下一首"]').click(); await delay(80);
+        check('下一首：标题、封面和音律颜色更新', calls.at(-1)[0] === 'nextTrack' && music.title.textContent === 'Blue hour' && music.art.querySelector('img.current')?.src === blue && phone.camera.style.getPropertyValue('--music-color') !== pinkColor);
+        music.card.querySelector('[aria-label="上一首"]').click(); await delay(80);
+        check('上一首：封面恢复，旧封面有过渡', calls.at(-1)[0] === 'previousTrack' && music.art.querySelector('img.current')?.src === pink);
+        music.range.value = '61'; music.range.dispatchEvent(new Event('input', { bubbles: true })); music.range.dispatchEvent(new Event('change', { bubbles: true })); await delay(20);
+        check('拖动进度：seekTo 秒数准确', calls.at(-1)[0] === 'seekTo' && calls.at(-1)[1] === 61);
+        // Pointer propagation uses actual ShadowRoot paths. Capture is stubbed only because
+        // script-generated pointers have no native pointer device to capture.
+        const originalCameraCapture = phone.camera.setPointerCapture, originalStatusCapture = phone.statusBar.setPointerCapture;
+        phone.camera.setPointerCapture = phone.statusBar.setPointerCapture = () => {};
+        const pointer = (node, type, x, y) => node.dispatchEvent(new PointerEvent(type, { bubbles: true, composed: true, pointerId: 7, button: 0, clientX: x, clientY: y }));
+        const before = JSON.stringify(phone.position);
+        pointer(phone.camera, 'pointerdown', 200, 100); pointer(phone.camera, 'pointermove', 204, 103); pointer(phone.camera, 'pointerup', 204, 103);
+        pointer(music.range, 'pointerdown', 200, 200); pointer(music.range, 'pointermove', 240, 200); pointer(music.range, 'pointerup', 240, 200);
+        check('灵动岛和进度条：不启动整机拖拽，卡片内点击不误收起', JSON.stringify(phone.position) === before && !music.card.hidden);
+        pointer(phone.camera, 'pointerdown', 200, 100); await delay(560); pointer(phone.camera, 'pointerup', 200, 100); phone.camera.click();
+        check('长按：setVisible(true, {expand:true})，不触发短按', calls.at(-1)[0] === 'setVisible' && calls.at(-1)[1] === true && calls.at(-1)[2].expand && music.card.hidden && JSON.stringify(phone.position) === before);
+        pointer(phone.clock, 'pointerdown', 100, 100); pointer(phone.statusBar, 'pointermove', 180, 140); pointer(phone.statusBar, 'pointerup', 180, 140);
+        check('状态栏其他区域：保留整机拖拽', JSON.stringify(phone.position) !== before);
+        phone.camera.setPointerCapture = originalCameraCapture; phone.statusBar.setPointerCapture = originalStatusCapture;
+        music.toggleCard(); pointer(document.querySelector('h1'), 'pointerdown', 10, 10);
+        check('外部区域：收起卡片且不拦截原事件', music.card.hidden);
+        emit({ loaded: false, trackId: '', title: '', artist: '', artwork: '', duration: 0, playing: true });
+        check('静音保活空状态：不触发灵动岛', !phone.camera.classList.contains('music-active') && !music.available());
+        resetState(); emit({}); music.toggleCard();
+        check('展开时：仅有轻量进度定时器', music.progressTimer !== null);
+        phone.minimize(); const readsBeforeHidden = reads; await delay(550);
+        check('最小化：停止监测及进度、音律暂停，不停止音乐', !music.watchTimer && !music.progressTimer && !phone.camera.classList.contains('music-visible') && state.playing && reads === readsBeforeHidden);
+        state = { ...state, currentTime: 90 }; phone.open();
+        check('重新打开：主动读取最新真实状态', music.state.currentTime === 90 && reads > readsBeforeHidden);
+        music.setEnabled(false); emit({});
+        check('开关关闭：还原摄像头并停定时器', !music.available() && !music.watchTimer && !phone.camera.classList.contains('music-active'));
+        music.setEnabled(true); check('开关重开：立即恢复', music.available());
+        const oldApi = window.__SELENE_MUSIC_PLAYER__; window.__SELENE_MUSIC_PLAYER__ = makeApi(); emit({ title: '重载后的曲目' });
+        check('播放器热重载：连接新引用', music.api !== oldApi && music.title.textContent === '重载后的曲目');
+        delete window.__SELENE_MUSIC_PLAYER__; await delay(4100);
+        check('播放器无事件卸载：低频引用检查还原摄像头', !music.available() && !phone.camera.classList.contains('music-active'));
+        window.__SELENE_MUSIC_PLAYER__ = makeApi(); await delay(4100);
+        check('播放器无事件重装：低频检查接回', music.available());
+        const oldPhone = phone, oldMusic = music; create(); oldPhone.close();
+        check('手机重载：先启动的播放器可直接读取', music.available());
+        check('旧手机卸载：监听、定时器、封面回调和 API 引用清理', oldMusic.disposed && !oldMusic.cleanups.length && !oldMusic.roots.length && !oldMusic.api && !oldMusic.state && ['watchTimer','progressTimer','collapseTimer','holdTimer','artTimer'].every(key => !oldMusic[key]));
+        // A nested helper frame must still prefer the real same-origin ROOT API.
+        const helper = document.createElement('iframe'); helper.hidden = true; document.body.append(helper);
+        const retained = phone; create(helper.contentWindow); retained.close();
+        check('助手 iframe：使用实际同源父窗口接口', music.apiRoot === window && music.available()); helper.remove();
+        const readBeforeIdle = reads; await delay(4100);
+        check('收起时：身份检查不轮询播放快照', reads === readBeforeIdle);
+        check('音乐交互不触发聊天或剧情 action', actions.every(name => name === 'open'));
+        const playerBeforeClose = state.playing; const finalMusic = music; phone.close(); emit({ title: '卸载后事件' });
+        check('手机卸载：音乐继续，旧监听不接收新事件', state.playing === playerBeforeClose && finalMusic.state === null && finalMusic.disposed);
+        document.querySelector('#report').textContent = checks.map((name, index) => `${index + 1}. ✓ ${name}`).join('\n');
+        return { passed: checks.length, checks };
+    };
+    window.previewMusic = () => {
+        phone?.close(); resetState(); window.__SELENE_MUSIC_PLAYER__ = makeApi(); create();
+        document.querySelector('#report').textContent = '预览已打开：点击灵动岛展开，长按记录完整播放器接口调用。';
+    };
+    document.querySelector('#run').onclick = () => window.runMusicSmoke().catch(error => { document.querySelector('#report').textContent = '失败：' + error.stack; });
+    document.querySelector('#preview').onclick = window.previewMusic;
+    window.previewMusic();
+})();
+</script>
+<script>
+window.runMusicV2Smoke = async (previewOnly = false) => {
+    window.previewMusic();
+    const fixture = window.musicFixture, p = fixture.phone, app = p.musicApp, bridge = p.musicIsland;
+    const delay = () => new Promise(resolve => setTimeout(resolve, 25));
+    const checks = [], calls = [], favorites = new Set();
+    const check = (name, value) => { if (!value) throw Error(name); checks.push(name); };
+    let instanceId = 'phone-test-v2-a', selected = 0, revision = 0, networkSearches = 0;
+    const artwork = fixture.makeApi().getPlaybackState().artwork;
+    const ok = fields => ({ protocolVersion: 2, instanceId, loaded: true, available: true, revision, ok: true, ...fields });
+    const track = (index, kind = 'queue') => ({ trackId: `opaque-${index}`, trackRef: Object.freeze({ instanceId, kind, trackId: `opaque-${index}`, ...(kind === 'playlist' ? { playlistId: 'list-1' } : {}), ...(kind === 'search' ? { searchId: 'search-1' } : {}) }), title: `协议测试歌曲 ${index + 1}`, artist: '协议测试歌手', artwork, duration: 180, playable: true, favorite: favorites.has(index), index });
+    const page = (items, options = {}) => ok({ items: items.slice(options.offset || 0, (options.offset || 0) + (options.limit || 30)), total: items.length, offset: options.offset || 0, limit: options.limit || 30, nextOffset: null });
+    const event = changed => dispatchEvent(new CustomEvent('selene-music-library-state', { detail: ok({ changed, counts: { favorites: favorites.size, playlists: 1, queue: 2 } }) }));
+    const playback = () => fixture.emit({ loaded: true, playing: true, title: track(selected).title, artist: track(selected).artist, artwork, trackId: `platform-id-${selected}`, currentTime: 20, duration: 180 });
+    const makeV2 = () => ({ ...fixture.makeApi(),
+        getCapabilities() { return ok({ capabilities: Object.fromEntries(['getMusicLibrary','getQueueState','searchMusic','cancelMusicSearch','playTrack','playPlaylist','addToQueue','toggleFavorite'].map(key => [key, true])), searchModes: ['gd','other'], maxPageSize: 100 }); },
+        getMusicLibrary(options) { calls.push(['getMusicLibrary', options]); if (options.kind === 'playlists') return page([{ playlistId: 'list-1', name: '协议测试歌单', trackCount: 2 }], options); return page([0,1].filter(index => options.kind !== 'favorites' || favorites.has(index)).map(index => track(index, options.kind === 'playlist' ? 'playlist' : 'favorites')), options); },
+        getQueueState(options) { return { ...page([track(0),track(1)], options), currentTrackId: track(selected).trackId, currentTrack: track(selected, 'current'), queueIndex: selected }; },
+        searchMusic(query, options) { calls.push(['searchMusic', query, { ...options, signal: undefined }]); if (!options.searchId) networkSearches++; if (query === '取消') return new Promise(resolve => options.signal.addEventListener('abort', () => resolve({ ...ok({}), ok: false, error: { code: 'CANCELED' } }), { once: true })); return Promise.resolve({ ...page([track(0,'search'),track(1,'search')], options), searchId: 'search-1', query, mode: 'gd', source: 'auto', expiresAt: Date.now()+300000 }); },
+        cancelMusicSearch(channel) { calls.push(['cancelMusicSearch', channel]); return ok({ canceled: true }); },
+        playTrack(ref) { calls.push(['playTrack', ref]); if (ref.instanceId !== instanceId) return { ...ok({}), ok:false,error:{code:'STALE_REF',message:'旧引用'} }; selected = Number(ref.trackId.split('-')[1]); playback(); event(['queue']); return ok({ accepted:true,trackId:ref.trackId,queueIndex:selected }); },
+        playPlaylist(id) { calls.push(['playPlaylist', id]); selected = 0; playback(); event(['queue']); return ok({ accepted:true,trackId:track(0).trackId,queueIndex:0 }); },
+        addToQueue(ref) { calls.push(['addToQueue', ref]); event(['queue']); return ok({ added:false,total:2 }); },
+        toggleFavorite(ref) { calls.push(['toggleFavorite', ref]); const index=Number(ref.trackId.split('-')[1]); favorites.has(index)?favorites.delete(index):favorites.add(index); revision++; event(['favorites']); return ok({trackId:ref.trackId,favorite:favorites.has(index)}); },
+    });
+    window.previewMusicV2 = () => { window.previewMusic(); window.__SELENE_MUSIC_PLAYER__=makeV2(); playback(); window.musicFixture.phone.navigate('music'); };
+    if (previewOnly) { window.previewMusicV2(); await delay(); return { preview: true }; }
+    p.navigate('music'); await delay();
+    check('v1 保留基础播放与更新提示', !app.capabilities && !app.mini.hidden && app.root.textContent.includes('基础播放控制'));
+    window.__SELENE_MUSIC_PLAYER__ = makeV2(); playback(); await delay();
+    check('v2 自动握手，复用同一个灵动岛桥接器', app.capabilities?.searchMusic && app.bridge === bridge && app.instanceId === instanceId);
+    const mini = app.mini;
+    app.miniPlay.click(); await delay();
+    check('暂停同步到音乐 App 和灵动岛', !bridge.state.playing && !p.camera.classList.contains('music-playing'));
+    app.miniPlay.click(); await delay();
+    app.go('search'); app.query='测试'; app.body.querySelector('input').value='测试'; app.body.querySelector('.player-search-submit').click(); await delay();
+    check('搜索真实公开接口结果并保留迷你播放器', app.list.querySelectorAll('.player-track').length===2 && calls.some(row=>row[0]==='searchMusic') && app.mini===mini);
+    app.list.querySelector('[data-favorite]').click(); await delay();
+    check('收藏同步使用原始搜索引用，更新时不重复网络搜索', favorites.has(0) && app.list.querySelector('[data-favorite]').classList.contains('is-favorite') && networkSearches===1 && calls.find(row=>row[0]==='toggleFavorite')[1].kind==='search');
+    app.go('library'); await delay();
+    check('喜欢的歌曲来自播放器音乐库', app.list.querySelectorAll('.player-track').length===1);
+    favorites.clear(); event(['favorites']); await delay();
+    check('本体取消收藏后手机同步更新', app.list.querySelectorAll('.player-track').length===0);
+    app.go('library',{kind:'playlists'}); await delay(); app.list.querySelector('.player-playlist').click(); await delay();
+    check('歌单目录及歌曲列表按公开接口读取', app.playlist.playlistId==='list-1' && app.list.querySelectorAll('.player-track').length===2);
+    app.body.querySelector('.player-pill').click(); await delay();
+    check('播放整张歌单调用 playPlaylist', calls.some(row=>row[0]==='playPlaylist'&&row[1]==='list-1'));
+    app.list.querySelectorAll('.player-track-open')[1].click(); await delay();
+    check('歌单选曲、迷你播放器及灵动岛同步', selected===1 && calls.filter(row=>row[0]==='playTrack').at(-1)[1].kind==='playlist' && app.miniTitle.textContent===track(1).title && bridge.title.textContent===track(1).title);
+    app.list.querySelector('[aria-label="加入待播清单"]').click(); await delay(); app.go('queue'); await delay();
+    check('待播清单显示真实顺序与选中项', calls.some(row=>row[0]==='addToQueue') && app.list.querySelectorAll('.player-track').length===2 && app.list.querySelector('.is-current')?.dataset.track==='opaque-1');
+    app.showFull(true); app.range.value='61'; app.range.oninput(); app.range.onchange(); await delay();
+    check('全屏播放页拖动进度调用 seekTo', !app.full.hidden && window.__SELENE_MUSIC_PLAYER__.getPlaybackState().currentTime===61);
+    bridge.setEnabled(false); app.fullPlay.click(); await delay();
+    check('关闭灵动岛开关仍可使用独立音乐 App', bridge.appActive && !bridge.islandEnabled && !bridge.state.playing); bridge.setEnabled(true);
+    const actionLog=[]; const originalAction=p.action; p.action=(name,data)=>{actionLog.push({name,data});return Promise.resolve(true);};
+    app.setActive(false); p.view='chat'; p.state={scope:'["music-test"]',thread:{id:'chat-1'},context:{name1:'玩家',characters:[]},threads:[],people:[]};
+    p.shareCurrentMusic('');
+    check('分享必须由用户确认，预览不自动写入聊天', actionLog.length===0 && !!p.pop.querySelector('.shared-music-card'));
+    p.pop.querySelector('.wechat-primary').click(); await delay();
+    const sent=actionLog.find(row=>row.name==='send');
+    check('主动分享只发歌曲快照，不带运行引用或音频 URL', sent?.data.payload.components[0].fields.kind==='selene-music' && sent.data.text.includes(track(1).title) && !JSON.stringify(sent.data).includes('trackRef'));
+    p.action=originalAction;
+    p.view='home'; p.render(p.state);
+    check('相册和音乐在第一页最前，14 个入口无重复', [...p.content.querySelectorAll('.home-page:first-child [data-app]')].slice(0,2).map(node=>node.dataset.app).join(',')==='album,music' && p.content.querySelectorAll('[data-app]').length===14);
+    p.appearance({...p.settings,wallpaper:'photo-1',wallpaperImage:'',wallpaperShade:30});
+    const background=getComputedStyle(p.panel).backgroundImage;
+    check('在线壁纸遮罩有效，背景有内置回退，未内置图片', background.includes('oFQgbj9.md.png') && !background.includes('#0004d') && !background.includes('data:') && background.includes('radial-gradient'));
+    const imageChecks=await Promise.all(['oFQgbj9','oFQrLPa','oFQipgs','oFQsH7f'].map(id=>new Promise(resolve=>{const image=new Image();image.referrerPolicy='no-referrer';image.onload=()=>resolve(image.naturalWidth>0);image.onerror=()=>resolve(false);image.src='https://iili.io/'+id+'.md.png';})));
+    check('四张在线壁纸均可加载', imageChecks.every(Boolean));
+    p.navigate('music'); await delay(); app.go('search'); app.query='取消'; const pending=app.search(); await delay(); p.minimize(); await pending;
+    check('最小化取消手机搜索、停 UI 计时且不停止音乐', !app.searchController && !bridge.watchTimer && !bridge.progressTimer && calls.some(row=>row[0]==='cancelMusicSearch'));
+    instanceId='phone-test-v2-b'; window.__SELENE_MUSIC_PLAYER__=makeV2(); p.open(); await delay();
+    check('播放器热重载重新握手并放弃旧歌曲引用', app.instanceId===instanceId && app.queue.currentTrack.trackRef.instanceId===instanceId && !app.searchPage);
+    delete window.__SELENE_MUSIC_PLAYER__; bridge.connect(true); await delay();
+    check('播放器缺失显示未连接页面', app.body.textContent.includes('自动连接') && app.mini.hidden);
+    p.close();
+    check('卸载清理共享监听、订阅、计时器和引用', bridge.disposed && bridge.subscribers.size===0 && bridge.cleanups.length===0 && !bridge.progressTimer && app.disposed && !app.api && !app.queue);
+    document.querySelector('#report').textContent=checks.map(name=>'✓ '+name).join('\n');
+    return {passed:checks.length,checks};
+};
+document.querySelector('#run-v2').onclick=()=>window.runMusicV2Smoke().catch(error=>{document.querySelector('#report').textContent=error.stack;});
+</script>
+<script src="music-controls.js"></script>
+</html>
