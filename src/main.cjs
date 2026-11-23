@@ -384,7 +384,13 @@ function start(frame) {
                 phone.activity(running);
             } });
             if (!session.valid() || job.cancelled) throw new Error('聊天已变化或请求已取消，未写入回复');
-            const result = parseReply(response, mode, count);
+            let result;
+            try { result = parseReply(response, mode, count); } catch (error) {
+                // Keep diagnostics only in this page's scoped request preview,
+                // never in the ledger, backups, or subsequent model context.
+                lastRequest.failure = { message: error.message, response: String(response).slice(0, 40000), truncated: String(response).length > 40000 };
+                throw new Error(`${error.message} 请在「调试 → 上次回复解析失败」查看原文。`, { cause: error });
+            }
             if (mode === 'comments') {
                 const post = await ledger.get(session.scope, targetPost.id);
                 if (!post || !active(post, session.trail) || !post.audience.includes(PLAYER) || session.prefs.hiddenSocial?.some(id => id === post.id || id === post.reference)) throw new Error('原帖已删除或不再可见，未保存评论。');

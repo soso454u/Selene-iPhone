@@ -2677,6 +2677,9 @@ class Phone {
             : this.small('前往会话 → ··· → 预览上下文，或先发起一轮手机回复。');
         const statusRows = [...new Map([...(state.pending || []), ...state.rows].map(row => [row.id, row])).values()].slice(0, 65);
         return this.el('div', 'screen', this.heading('调试面板', 'CONTEXT & SYNC'),
+            state.lastRequest?.failure ? this.section('上次回复解析失败', this.small(state.lastRequest.failure.message),
+                this.small(`仅在本页临时保留，不加入剧情或后续模型请求。${state.lastRequest.failure.truncated ? '原文超过 40000 字，仅展示前 40000 字。' : ''}`),
+                this.el('details', '', this.el('summary', '', '查看模型原始回复'), this.el('pre', '', state.lastRequest.failure.response))) : null,
             this.section('实际来源', this.small(`聊天：${JSON.parse(state.scope).at(-1)} · 当前分支 ${state.trail.tail}`),
                 pack ? this.el('div', 'token-total', this.el('strong', '', `≈${pack.used.toLocaleString('zh-CN')}`), this.el('span', '', '估算 Token')) : this.small('暂无预览。'),
                 tokens.size ? this.el('div', 'token-breakdown', ...[...tokens].map(([group, total]) => this.el('div', '', this.el('span', '', sourceNames[group]), this.el('strong', '', `≈${total} T`)))) : null,

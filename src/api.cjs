@@ -241,19 +241,47 @@ function socialPayload(payload) {
     return { ...output, comments };
 }
 
-function parseReply(text, mode, count = 1) {
-    let cleaned = String(text).trim().replace(/^(?:<(think|thinking|reasoning)>[\s\S]*?<\/\1>\s*)+/i, '');
-    let result;
-    try { result = JSON.parse(cleaned); } catch {
-        const fences = [...cleaned.matchAll(/```(?:json)?[ \t]*\r?\n?([\s\S]*?)```/gi)];
-        const first = cleaned.indexOf('{');
-        const last = cleaned.lastIndexOf('}');
-        if (!/^[\[{]/.test(cleaned)) {
-            if (fences.length === 1) cleaned = fences[0][1].trim();
-            else if (!fences.length && first >= 0 && last > first && !cleaned.includes('```')) cleaned = cleaned.slice(first, last + 1);
+// Only normalize unambiguous JSON formatting mistakes. Never complete truncated
+// structures, guess missing values, or turn prose into phone events.
+function normalizeReplyJson(text) {
+    let output = ''; let quoted = false;
+    for (let index = 0; index < text.length; index++) {
+        const char = text[index];
+        if (quoted && char === '\\') { output += char + (text[++index] ?? ''); continue; }
+        if (char === '"') quoted = !quoted;
+        if (quoted && char.charCodeAt(0) < 32) { output += JSON.stringify(char).slice(1, -1); continue; }
+        if (!quoted && char === ',') {
+            let left = index - 1; let right = index + 1;
+            while (left >= 0 && /\s/.test(text[left])) left--;
+            while (right < text.length && /\s/.test(text[right])) right++;
+            const before = text[left]; const after = text[right];
+            if (before && !'[{,:'.includes(before) && (after === ']' || after === '}')) continue;
         }
-        try { result = JSON.parse(cleaned); } catch { throw new Error('回复不是手机预设要求的 JSON；未把它写入剧情，可重试'); }
+        output += char;
     }
+    return output;
+}
+
+function replyJson(text) {
+    let cleaned = String(text).trim();
+    // Reasoning may appear inside a fence or a final-answer wrapper.
+    const unwrap = value => value
+        .replace(/^(?:<(think|thinking|reasoning|analysis)(?:\s[^>]*)?>[\s\S]*?<\/\1>\s*)+/i, '')
+        .replace(/^<(final|answer|response|json)(?:\s[^>]*)?>\s*([\s\S]*?)\s*<\/\1>$/i, '$2').trim();
+    cleaned = unwrap(cleaned);
+    try { return JSON.parse(cleaned); } catch {}
+    const fences = [...cleaned.matchAll(/```(?:json)?[ \t]*\r?\n?([\s\S]*?)```/gi)];
+    if (!/^[\[{]/.test(cleaned) && fences.length === 1) cleaned = unwrap(fences[0][1].trim());
+    const first = cleaned.indexOf('{');
+    const last = cleaned.lastIndexOf('}');
+    if (!cleaned.startsWith('[') && !cleaned.includes('```') && first >= 0 && last > first && !/[{}\[\]]/.test(cleaned.slice(last + 1))) cleaned = cleaned.slice(first, last + 1);
+    try { return JSON.parse(normalizeReplyJson(cleaned)); } catch {
+        throw new Error('模型回复未符合手机 JSON 协议，本次未保存，不会自动追加请求。');
+    }
+}
+
+function parseReply(text, mode, count = 1) {
+    const result = replyJson(text);
     if (mode === 'comments') {
         const comments = socialPayload({ comments: result?.comments ?? result?.payload?.comments })?.comments;
         if (!comments?.length) throw new Error('本次未返回评论，原帖保留；不会自动追加请求。');

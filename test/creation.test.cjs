@@ -31,6 +31,26 @@ test('forum generation accepts a complete JSON reply wrapped in reasoning or Mar
     for (const partial of [json.slice(0, -1), `[${json}`, `${json}\n${json}`, `\`\`\`json\n${json.slice(0, -1)}\n\`\`\``]) assert.throws(() => parseReply(partial, 'post'), /JSON/);
 });
 
+test('phone JSON accepts formatting slips without changing text or inventing incomplete replies', () => {
+    const expected = ['第一行\n第二行\t内容', '字面 ,}、,] 和 "引号"、\\路径'];
+    const json = JSON.stringify({ messages: expected });
+    for (const wrapped of [
+        `<analysis>草稿 {不能采纳}</analysis>\n<final>${json}</final>`,
+        `\`\`\`json\n<think>内部分析</think>\n${json}\n\`\`\``,
+        `${json}\n以上是回复。`,
+        json.replace('第一行\\n第二行\\t内容', '第一行\n第二行\t内容'),
+        '{"messages":["第一行\\n第二行\\t内容","字面 ,}、,] 和 \\"引号\\"、\\\\路径",],}',
+    ]) assert.deepEqual(parseReply(wrapped, 'reply').messages, expected);
+    assert.deepEqual(parseReply('{"posts":[{"text":"完整帖子","payload":{"comments":[],},},],}', 'post', 3).messages, ['完整帖子']);
+    assert.equal(parseReply('{"comments":[{"nickname":"路人","text":"完整评论",},],}', 'comments').comments[0].text, '完整评论');
+    for (const invalid of [
+        '你好呀', '<html><body>连接异常</body></html>', '{"messages":["半句话',
+        `${json}\n{`, `${json}\n[`, `${json}\n${json}`, '[{"messages":["不能截取内部对象"]}',
+        '{"messages":[,]}', '{"messages":["内容",,]}', '{"messages":["错误\\q转义"]}',
+        `\`\`\`json\n${json}\n\`\`\`\n\`\`\`json\n${json}\n\`\`\``,
+    ]) assert.throws(() => parseReply(invalid, 'reply'), /JSON/);
+});
+
 test('one batch protocol preserves each post payload and rejects extra or malformed posts', () => {
     const posts = Array.from({ length: 5 }, (_, i) => ({ text: `动态${i}`, payload: { title: `标题${i}`, media: Array.from({ length: [0, 1, 3, 2, 9][i] }, (_, image) => ({ type: 's-image', text: `画面${i}-${image}` })) } }));
     assert.deepEqual(parseReply(JSON.stringify({ posts }), 'post', 5).posts.map(row => row.payload.title), posts.map(row => row.payload.title));

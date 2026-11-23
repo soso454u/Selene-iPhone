@@ -277,6 +277,14 @@ test('built-in and edited phone presets assemble only the requested modules', as
     assert.match(disabled.messages[0].content, /只输出 JSON/);
     assert.doesNotMatch(disabled.messages[0].content, /通用补充|聊天补充/);
     assert.ok(disabled.sources.some(source => source.group === 'story' && source.content.includes('已经约定')));
+    assert.match(disabled.messages.at(-1).content, /【本轮输出协议】[\s\S]*\{"messages":\["实际文本"\]\}/);
+    assert.match(disabled.messages.at(-1).content, /换行写成 \\n/);
+    const batch = await buildContext({ ...input, action: 'post', platform: '小红书', postCount: 3 });
+    assert.match(batch.messages.at(-1).content, /【本轮输出协议】[\s\S]*\{"posts":\[/);
+    assert.doesNotMatch(batch.messages.at(-1).content, /\{"messages":/);
+    const comments = await buildContext({ ...input, action: 'comments', platform: '朋友圈' });
+    assert.match(comments.messages.at(-1).content, /【本轮输出协议】[\s\S]*\{"comments":\[/);
+    assert.doesNotMatch(comments.messages.at(-1).content, /\{"messages":|\{"posts":/);
 });
 
 test('social history requests allow earlier publication dates while keeping the configured RP time unchanged', async () => {

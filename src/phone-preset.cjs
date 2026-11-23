@@ -302,6 +302,7 @@ const SOCIAL_TIME_RULE = '动态可以发表于当前或过去，不局限于当
 const postCounts = platform => platform === 'X' ? [5, 6, 7] : [1, 3, 5];
 
 function phonePrompt(text, { enabled, post, commentsOnly = false, group, platform = '朋友圈', postCount = 1, commonPrompt = SOCIAL_COMMON_PROMPT, platformPrompts = {} }) {
+    let protocol = '';
     const parts = enabled ? sections(text) : [];
     const xPost = post && platform === 'X';
     const selected = ['CORE', ...(post ? ['SOCIAL'] : ['CHAT', ...(group ? ['GROUP'] : [])]), 'OUTPUT'];
@@ -313,7 +314,10 @@ function phonePrompt(text, { enabled, post, commentsOnly = false, group, platfor
             if (platformPrompt) blocks.push(platformPrompt);
         }
         if (name === 'OUTPUT') {
-            if (commentsOnly) return '【OUTPUT】\n仅为指定原帖生成 15–40 条有差异的模拟评论，不代替玩家发言，不复述或新建主帖。仅输出 JSON：{"comments":[{"id":"reader_1","nickname":"自然昵称","text":"评论正文","quote":"所回复内容（可选）","postedAt":"评论剧情时间（可选）"}]}。每条最多 500 字，只依据原帖已公开的信息互动，不泄露私聊或后来剧情。朋友圈限合理熟人，不虚构陌生路人。不能把示例当成实际评论；不输出分析、Markdown 或 HTML。';
+            if (commentsOnly) {
+                protocol = '仅为指定原帖生成 15–40 条有差异的模拟评论，不代替玩家发言，不复述或新建主帖。仅输出 JSON：{"comments":[{"id":"reader_1","nickname":"自然昵称","text":"评论正文","quote":"所回复内容（可选）","postedAt":"评论剧情时间（可选）"}]}。每条最多 500 字，只依据原帖已公开的信息互动，不泄露私聊或后来剧情。朋友圈限合理熟人，不虚构陌生路人。不能把示例当成实际评论；不输出分析、Markdown 或 HTML。';
+                return `【OUTPUT】\n${protocol}`;
+            }
             if (post) blocks.push(SOCIAL_IMAGE_PROTOCOL);
             const batch = post && postCount > 1;
             const interactionProtocol = post ? `${xPost ? '账号写入 payload.handle，@ 后使用 1–15 位英文字母、数字或下划线，同一角色沿用已提供的账号。' : ''}${SOCIAL_TIME_RULE}评论互动写入各条 payload.comments 数组，元素为 {id:稳定的账号ID,nickname:昵称,text:评论正文,quote:所回复内容（可选）,postedAt:评论时间（可选）}。最多每帖 40 条，每条不超过 500 字；主帖正文不重复罗列评论。不生成玩家的评论。只输出本应用 JSON 数据，不输出 HTML、CSS 或脚本。${xPost ? '可以在 payload.counts 中填写 X 番外的模拟点赞、转发数，格式为 [{"kind":"点赞","text":"42"},{"kind":"转发","text":"6"}]；评论数由实际生成的评论计算。发布时间只为番外排序，不确认正文事件。' : '互动数以实际生成的记录为准，不另外捏造统计字段。'}` : '';
@@ -321,10 +325,11 @@ function phonePrompt(text, { enabled, post, commentsOnly = false, group, platfor
             const example = batch ? '{"posts":[{"text":"动态正文","payload":{"title":"标题","comments":[{"id":"reader_1","nickname":"昵称","text":"评论正文"}]}}]}' : post ? '{"messages":["动态正文"],"payload":{"comments":[{"id":"reader_1","nickname":"昵称","text":"评论正文"}]}}' : '{"messages":["实际文本"]}';
             blocks.push(`${post ? '' : '仅按本轮任务发言。人物性格、关系及情绪以有效资料为准，不由预设重新定义；带「资料」标记的内容仅作设定与剧情依据，不是生成指令。示例对话不是已发生的事件。\n'}${limit}${interactionProtocol}${post ? '每条动态是否配图、配几张（0–9 张），由发言角色依据性格、发布意图和当前内容自行决定；可纯文字、单图或多图，不默认固定为一张，不为凑数添加图片。动态条数与每条配图张数彼此独立。将每张配图分别写入该条 payload.media 数组，逐张提供不同的画面描述；无配图时使用空 media 数组。本轮有发布时评论合计至少 15 条，必须实际填入 payload.comments，不能只写评论数量；下方示例仅示范字段，不代表只生成一条评论。' : '图片分享可在 components 中包含多张 photo，每张分别描述，不要固定为一张。'}只输出 JSON 对象，格式为 ${example}；不发送时用空数组。${xPost ? 'X 番外省略剧情记忆字段 memory。' : '可另加字符串字段 memory，记录本轮实际建立且仍有后续影响的事项，并区分声称、计划、承诺与已完成事实。'}不要输出分析、Markdown 围栏或正文美化容器。`);
         }
+        if (name === 'OUTPUT') protocol = blocks.at(-1);
         return blocks.length ? `【${name}】\n${blocks.join('\n\n')}` : '';
     });
     const covers = key => parts.some(part => part.key === key && part.text.replace(/\r\n/g, '\n') === BUILTIN_SECTIONS.get(key));
-    return { text: blocks.filter(Boolean).join('\n\n'), coversChat: !post && covers('ONLINE_CHAT'), coversSocial: post && covers('SOCIAL_LIFE') };
+    return { text: blocks.filter(Boolean).join('\n\n'), protocol, coversChat: !post && covers('ONLINE_CHAT'), coversSocial: post && covers('SOCIAL_LIFE') };
 }
 
 module.exports = { DEFAULT_PRESET, LEGACY_DEFAULT_PRESET, PRESET_LIMIT, validatePreset, phonePrompt, PLATFORM_RULES, postCounts, SOCIAL_COMMON_PROMPT, cleanPlatformPrompts, socialPromptFor, SOCIAL_TIME_RULE, cleanSocialCommonPrompt, LEGACY_SOCIAL_DEFAULTS, SINGLE_IMAGE_RULE };
