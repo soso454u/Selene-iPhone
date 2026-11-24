@@ -7,6 +7,7 @@ const { mergeEvents } = require('../src/cloud.cjs');
 const { reconcileStories, pendingSyncEvents } = require('../src/sync.cjs');
 const { contactDeleted, conversationDeleted, conversationGroups } = require('../src/conversations.cjs');
 const { mergeBackupData, PREF_KEYS } = require('../src/portable.cjs');
+const { Photos, photoSources } = require('../src/photos.cjs');
 
 const people = [{ id: PLAYER, name: '小林' }, { id: 'card:actor', name: '小顾', current: true }, { id: 'screen:friend', name: '小宋' }];
 const settings = { ...DEFAULTS, lore: false, dynamic: false };
@@ -46,9 +47,24 @@ test('upgrade repairs old cloud aliases and a rewritten photo bracketed by the o
     const parser = await reconcileStories(input);
     const visible = [...ledger.records.values()].filter(row => active(row, trail) && !row.echoOf && (row.origin === 'phone' || row.parser === parser));
     assert.deepEqual(visible.map(row => row.text), [...originals.map(row => row.text), '收到了']);
-    assert.equal(ledger.records.size, 7);
+    assert.equal(ledger.records.size, 8);
+    const raw = JSON.stringify(originals[1]);
+    const photos = new Photos(ledger);
+    const described = await photos.withDescriptions(scope, visible, trail, parser);
+    const image = described.find(row => row.id === originals[1].id);
+    assert.equal(image.payload.components[0].displayText, '窗边花瓶里的几枝鲜花，窗外阳光落在花瓣上。');
+    assert.equal(image.payload.components[0].text, '窗边的一束花');
+    assert.equal(image.payload.components[0].fields.prompt, 'flowers');
+    assert.equal(photoSources(described).find(photo => photo.sourceId === image.id).description, image.payload.components[0].displayText);
+    assert.equal(JSON.stringify(originals[1]), raw);
+    assert.equal((await photos.withDescriptions(scope, visible, trail, 'different-parser')).find(row => row.id === image.id).payload.components[0].displayText, undefined);
+    const alternate = lineage([...chat.slice(0, 2), reply('不同的剧情回复')]);
+    assert.equal((await photos.withDescriptions(scope, visible, alternate, parser)).find(row => row.id === image.id).payload.components[0].displayText, undefined);
+    const restored = new Ledger({}).cleanEvents([...ledger.records.values()], scope);
+    const restoredPhotos = new Photos(fixture(restored));
+    assert.equal((await restoredPhotos.withDescriptions(scope, visible, trail, parser)).find(row => row.id === image.id).payload.components[0].displayText, image.payload.components[0].displayText);
     await reconcileStories(input);
-    assert.equal(ledger.records.size, 7);
+    assert.equal(ledger.records.size, 8);
 });
 
 test('new or unanchored images are not collapsed solely because their type or time matches', async () => {

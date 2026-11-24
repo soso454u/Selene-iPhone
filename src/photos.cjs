@@ -1,4 +1,4 @@
-const { clip, newId, PLAYER } = require('./domain.cjs');
+const { clip, newId, PLAYER, active } = require('./domain.cjs');
 const { safeUrl } = require('./media.cjs');
 const { isEnglishPrompt } = require('./image-rules.cjs');
 const validImageBlob = blob => !!blob && typeof blob.arrayBuffer === 'function' && blob.size > 0 && blob.size <= 20 * 1024 * 1024 && /^image\/(png|jpeg|webp|gif|avif)$/.test(blob.type);
@@ -16,7 +16,7 @@ function dataImageBlob(value) {
     return blob;
 }
 function photoSources(rows) {
-    return rows.flatMap(row => (row.payload?.components || row.payload?.media || []).flatMap((part, index) => ['photo', 's-image'].includes(part.type) ? [{ id: `source:${row.id}:${index}`, sourceId: row.id, index, ownerId: row.speakerId, title: row.payload?.title || '聊天与动态中的图片', description: clip(part.text), prompt: clip(part.fields?.prompt, 6000), photoId: clip(part.fields?.photoId, 120), url: photoSource(part.fields?.src || part.fields?.url), stamp: row.stamp, source: true }] : []));
+    return rows.flatMap(row => (row.payload?.components || row.payload?.media || []).flatMap((part, index) => ['photo', 's-image'].includes(part.type) ? [{ id: `source:${row.id}:${index}`, sourceId: row.id, index, ownerId: row.speakerId, title: row.payload?.title || '聊天与动态中的图片', description: clip(part.displayText || part.text), prompt: clip(part.fields?.prompt, 6000), photoId: clip(part.fields?.photoId, 120), url: photoSource(part.fields?.src || part.fields?.url), stamp: row.stamp, source: true }] : []));
 }
 class Photos {
     constructor(ledger, host = globalThis) { Object.assign(this, { ledger, host, objects: new Map() }); }
@@ -43,6 +43,28 @@ class Photos {
             });
             return { ...row, payload: { ...row.payload, [key]: parts } };
         });
+    }
+    async withDescriptions(scope, rows, trail, parser) {
+        const sources = new Map(rows.filter(row => row.origin === 'phone' && row.payload?.components?.some(part => part.type === 'photo')).map(row => [row.id, row]));
+        if (!sources.size || !parser) return rows;
+        const members = ids => JSON.stringify([...ids].sort());
+        const { rows: references } = await this.ledger.query(scope, { origin: 'tavern', limit: Infinity, accept: row => {
+            const source = sources.get(row.echoOf);
+            return source && row.parser === parser && active(row, trail) && active(source, trail) && row.speakerId === source.speakerId && row.thread === source.thread
+                && members(row.participants) === members(source.participants) && members(row.audience) === members(source.audience);
+        } });
+        const details = new Map();
+        for (const row of references.sort((a, b) => a.floor - b.floor || a.stamp - b.stamp)) {
+            const original = sources.get(row.echoOf).payload.components, parts = row.payload?.components;
+            if (!parts || parts.length !== original.length || parts.some((part, index) => part.type !== original[index].type)) continue;
+            parts.forEach((part, index) => {
+                if (part.type === 'photo' && clip(part.text).length > clip(original[index].text).length) details.set(JSON.stringify([row.echoOf, index]), clip(part.text));
+            });
+        }
+        return rows.map(row => sources.has(row.id) ? { ...row, payload: { ...row.payload, components: row.payload.components.map((part, index) => {
+            const displayText = details.get(JSON.stringify([row.id, index]));
+            return displayText ? { ...part, displayText } : part;
+        }) } } : row);
     }
     async attach(scope, photoId, sourceId, index) {
         const rows = await this.list(scope); const original = rows.find(row => row.id === photoId && row.inAlbum !== false);

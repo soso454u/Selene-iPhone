@@ -925,10 +925,10 @@ class Phone {
             if (row.quote || payload?.components?.some(part => part.type === 'reply')) bubble.append(this.el('span', 'bubble-quote', row.quote || payload.components.find(part => part.type === 'reply')?.fields?.quote || '引用消息'));
             const hasComponent = payload?.components?.length;
             if (hasComponent === 1 && ['voice', 'red', 'pay', 'loc', 'sticker'].includes(payload.components[0].type)) bubble.classList.add(`wechat-${payload.components[0].type}-bubble`);
-            if (hasComponent === 1 && payload.components[0].type === 'photo' && !payload.caption) bubble.classList.add('wechat-photo-bubble');
             if (hasComponent && payload.caption) bubble.append(this.el('span', '', payload.caption));
             if (!hasComponent) bubble.append(this.el('span', '', row.kind === 'call' ? `☎ ${row.text}` : row.text));
             else for (const [index, part] of payload.components.entries()) bubble.append(this.messageComponent(part, { sourceId: row.id, index, ownerId: row.speakerId }));
+            if (hasComponent === 1 && payload.components[0].type === 'photo' && !payload.caption) bubble.classList.add(bubble.querySelector('.im-photo') ? 'wechat-photo-bubble' : 'wechat-photo-description-bubble');
             bubble.setAttribute('aria-label', `${row.speaker}：${row.text}`);
             const stamp = chatTime(row.rpTime);
             const reference = lastDate || currentDate;
@@ -1131,7 +1131,7 @@ class Phone {
 
     openMessage(state, row) {
         const parts = row.payload?.components;
-        if (parts?.length === 1 && parts[0].type === 'photo') { const part = parts[0]; const generated = state.albumRows?.find(item => item.sourceId === row.id && item.index === 0 && item.generated); return this.photoViewer({ sourceId: row.id, index: 0, ownerId: row.speakerId, description: part.text, prompt: part.fields?.prompt, url: generated?.url || state.albumRows?.find(item => item.id === part.fields?.photoId)?.url || photoSource(part.fields?.src || part.fields?.url), title: '聊天图片' }); }
+        if (parts?.length === 1 && parts[0].type === 'photo') { const part = parts[0]; const generated = state.albumRows?.find(item => item.sourceId === row.id && item.index === 0 && item.generated); return this.photoViewer({ sourceId: row.id, index: 0, ownerId: row.speakerId, description: part.displayText || part.text, prompt: part.fields?.prompt, url: generated?.url || state.albumRows?.find(item => item.id === part.fields?.photoId)?.url || photoSource(part.fields?.src || part.fields?.url), title: '聊天图片' }); }
         if (parts?.length === 1 && parts[0].type === 'link' && parts[0].fields?.postId) return this.action('openSharedPost', { id: parts[0].fields.postId });
         if (parts?.length === 1 && parts[0].fields?.kind === 'selene-music') return this.dialog('分享的歌曲', this.el('div', 'form', this.messageComponent(parts[0]), this.button('打开音乐', () => this.navigate('music'), 'outline')));
         if (parts?.length !== 1 || !['voice', 'red', 'pay', 'loc'].includes(parts[0].type)) return this.messageMenu(state, row);
@@ -1304,20 +1304,17 @@ class Phone {
             if (url) { const image = this.el('img', 'im-sticker'); image.src = url; image.alt = name || '表情'; image.loading = 'lazy'; return image; }
         }
         if (['photo', 's-image'].includes(part.type)) {
+            const description = part.displayText || part.text;
             const generated = this.state?.albumRows?.find(row => row.sourceId === photoContext.sourceId && row.index === (photoContext.index || 0) && row.generated);
             const url = photoSource(generated?.url || this.state?.albumRows?.find(row => row.id === fields.photoId)?.url || fields.src || fields.url);
             if (url) {
-                const image = this.el('img', 'im-photo'); image.src = url; image.alt = part.text || '图片'; image.loading = 'lazy';
-                if (!photoContext.readOnly) image.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, url, description: part.text, prompt: fields.prompt, title: '聊天图片' }); };
+                const image = this.el('img', 'im-photo'); image.src = url; image.alt = description || '图片'; image.loading = 'lazy';
+                if (!photoContext.readOnly) image.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, url, description, prompt: fields.prompt, title: '聊天图片' }); };
                 return image;
             }
-            const card = this.el('span', 'im-photo-card',
-                this.el('span', 'im-photo-card-head', this.icon('photo'), this.el('small', '', '图片')),
-                this.el('span', 'im-photo-card-art', this.icon('photo')),
-                this.el('span', 'im-photo-card-caption', part.text || '暂无画面说明'),
-                this.el('span', 'im-photo-card-footer', this.el('small', '', photoContext.readOnly ? '画面说明' : '查看图片说明'), this.icon('right')));
-            if (!photoContext.readOnly) card.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, description: part.text, prompt: fields.prompt, title: '聊天图片' }); };
-            return card;
+            const copy = this.el('span', 'im-photo-description', this.el('span', 'im-photo-description-heading', this.icon('photo'), this.el('strong', '', '图片说明')), this.el('span', 'im-photo-description-copy', description || '暂无画面说明'));
+            if (!photoContext.readOnly) copy.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, description, prompt: fields.prompt, title: '图片说明' }); };
+            return copy;
         }
         const names = { trans: '翻译', reply: '回复', photo: '图片', video: '视频画面', voice: '语音', loc: '位置', red: '红包', pay: '转账', call: '通话', file: '文件', link: '链接', sys: '系统提示', 's-image': '图片说明', 's-video': '视频画面' };
         return this.el('span', `im-component im-${part.type}`, this.el('strong', '', names[part.type] || part.type), this.el('span', '', part.text || fields.name || fields.title || ''),
@@ -2122,7 +2119,7 @@ class Phone {
         let layer;
         const stored = this.state?.albumRows?.find(row => row.id === photo.id) || this.state?.albumRows?.find(row => photo.sourceId && row.sourceId === photo.sourceId && row.index === (photo.index || 0) && row.url === photo.url);
         const url = photoSource(photo.url);
-        const content = url ? this.el('img', 'album-full-image') : this.el('div', 'photo-description-preview', this.icon('photo'), this.el('p', 'photo-description', photo.description || '暂无画面说明'));
+        const content = url ? this.el('img', 'album-full-image') : this.el('div', 'photo-description-preview', this.el('p', 'photo-description', photo.description || '暂无画面说明'));
         if (url) {
             content.src = url; content.alt = photo.description || photo.title || '图片';
             // Preserve native image context menus and the mobile long-press save action.
@@ -2153,7 +2150,7 @@ class Phone {
                 if (await this.action('deletePhoto', { id: stored.id })) { if (layer) layer.remove(); else this.closeDialog(); }
             }, 'outline danger') : null);
         if (this.pop?.querySelector('.note-detail, .social-detail')) layer = this.noteSheet(photo.title || '图片', body);
-        else this.dialog(photo.title || '图片', body);
+        else this.dialog(url ? photo.title || '图片' : '图片说明', body);
     }
 
     albumView(state) {

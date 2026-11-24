@@ -527,16 +527,13 @@ pre { overflow-wrap: anywhere; white-space: pre-wrap; max-height: 215px; overflo
 .wechat-chat .wechat-photo-bubble, .wechat-chat .wechat-photo-bubble.own { padding: 0; background: transparent; color: var(--ink); border-radius: 13px; overflow: hidden; }
 .wechat-chat .wechat-photo-bubble::before { display: none; }
 .wechat-photo-bubble .im-photo { width: 208px; max-width: 100%; height: auto; max-height: 270px; object-fit: contain; border-radius: 13px; }
-.im-photo-card { display: flex; flex-direction: column; width: 208px; max-width: 100%; min-width: 0; padding: 12px; gap: 8px; border: 1px solid var(--line); border-radius: 13px; background: linear-gradient(145deg, var(--card), var(--surface)); color: var(--ink); text-align: left; white-space: normal; }
-.im-photo-card-head, .im-photo-card-footer { display: flex; align-items: center; gap: 5px; color: var(--muted); }
-.im-photo-card-head > svg { width: 13px; height: 13px; }
-.im-photo-card-head > small { font-size: 10px; letter-spacing: 1px; }
-.im-photo-card-art { display: grid; place-items: center; height: 54px; color: var(--muted); opacity: .55; }
-.im-photo-card-art > svg { width: 42px; height: 42px; stroke-width: 1.1; }
-.im-photo-card-caption { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
-.im-photo-card-footer { justify-content: space-between; padding-top: 7px; border-top: 1px solid var(--line); }
-.im-photo-card-footer > small { font-size: 10px; }
-.im-photo-card-footer > svg { width: 12px; height: 12px; }
+.wechat-chat .bubble.wechat-photo-description-bubble, .wechat-chat .bubble.own.wechat-photo-description-bubble { padding: 0; background: transparent; color: var(--ink); border: 0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 5px #0000000a; }
+.wechat-chat .bubble.wechat-photo-description-bubble::before { display: none; }
+.im-photo-description { display: flex; flex-direction: column; gap: 16px; width: 240px; max-width: 100%; min-width: 0; min-height: 240px; padding: 17px 18px; border: 1px solid #ffffff40; border-radius: 12px; background: radial-gradient(ellipse at 5% 0%, #ffffff38, transparent 65%), linear-gradient(145deg, color-mix(in srgb, var(--card) 75%, #bdc7b9), color-mix(in srgb, var(--card) 68%, #a3b7b6)); color: var(--ink); text-align: left; }
+.im-photo-description-heading { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.im-photo-description-heading > svg { width: 14px; height: 14px; flex: none; stroke-width: 1.5; }
+.im-photo-description-heading > strong { font-size: 11px; font-weight: 550; letter-spacing: .5px; }
+.im-photo-description-copy { flex: 1; align-content: center; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; font-weight: 400; line-height: 1.85; letter-spacing: .1px; }
 .contact-manage-row { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .contact-manage-row > .list-row { flex: 1; min-width: 0; border-bottom: 0; }
 .contact-manage-row > .icon-button { flex: none; width: 38px; height: 44px; color: var(--muted); }
@@ -1348,8 +1345,7 @@ pre { overflow-wrap: anywhere; white-space: pre-wrap; max-height: 215px; overflo
 
 .photo-gesture { touch-action: manipulation; }
 .photo-viewer .album-full-image { max-height: min(65vh,520px); object-fit: contain; -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; touch-action: auto; }
-.photo-description-preview { display: grid; place-items: center; gap: 20px; min-height: 220px; padding: 28px 20px; background: var(--surface); border-radius: 10px; }
-.photo-description-preview > svg { width: 42px; height: 42px; opacity: .5; }
+.photo-description-preview { display: block; padding: 2px 0; }
 .photo-description-preview p { font-size: 14px; line-height: 1.9; }
 
 .character-references { display: grid; gap: 10px; padding: 14px 0; border-block: 1px solid var(--line); }

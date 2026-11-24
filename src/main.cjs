@@ -250,6 +250,7 @@ function start(frame) {
             rows = [...new Map([...rows, ...related.rows].map(row => [row.id, row])).values()].sort((a, b) => b.stamp - a.stamp);
         }
         rows = await photos.withPrompts(scope, rows);
+        rows = await photos.withDescriptions(scope, rows, trail, session.parser);
         const threads = resolveThreads(session, overview?.rows ?? rows);
         const thread = threads.find(item => item.id === exact) || (exact && rows.length ? { id: exact, name: rows[0].names.join('、'), members: rows[0].participants } : null);
         const background = selectBackground(settings, session.prefs, tab, exact);

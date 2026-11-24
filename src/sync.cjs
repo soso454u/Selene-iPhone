@@ -124,7 +124,7 @@ async function reconcileStories({ ledger, scope, chat, trail, people, groups, se
     if (!settings.reverse) return '';
     const parser = parserRevision(settings, people);
     // Rescan once for echo matching without changing source IDs or image links.
-    const metaKey = `${scope}:story:${parser}:echo-v2`;
+    const metaKey = `${scope}:story:${parser}:echo-v3`;
     const previous = await ledger.readMeta(metaKey) || [];
     const cleared = await ledger.readMeta(`${scope}:clearedStory`) || [];
     const records = [];
@@ -171,6 +171,9 @@ async function reconcileStories({ ledger, scope, chat, trail, people, groups, se
                 const source = matchedEchoes.get(index).event;
                 const previous = await ledger.get(scope, event.id);
                 if (previous?.origin === 'tavern' && previous.echoOf !== source.id) echoUpdates.push({ ...previous, echoOf: source.id, revision: previous.revision + 1 });
+                // Keep the sourced picture description while showing only the
+                // original send. It remains a hidden, branch-scoped reference.
+                if (!previous && event.payload?.components?.some(part => part.type === 'photo')) records.push({ ...event, echoOf: source.id });
                 continue;
             }
             if (event.kind === 'post' && event.reference) posts.set(event.reference, event);
