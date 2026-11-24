@@ -6,7 +6,7 @@ const { fingerprint } = require('./resources.cjs');
 const CONNECTION_KEYS = new Set(['apiMode', 'base', 'model', 'temperature', 'output', 'outputLimitVersion', 'streaming', 'apiProfiles', 'activeApiProfile', 'platformApis']);
 const SETTINGS_KEYS = Object.keys(DEFAULTS).filter(key => !CONNECTION_KEYS.has(key));
 const IMAGE_KEYS = Object.keys(IMAGE_DEFAULTS).filter(key => !['provider', 'format', 'endpoint', 'upstreamEndpoint', 'modelsEndpoint', 'model', 'token', 'upstreamKey'].includes(key));
-const PREF_KEYS = ['chatBackgrounds', 'seen', 'pins', 'muted', 'hiddenBefore', 'hiddenSocial', 'postSync', 'notificationsClearedThrough'];
+const PREF_KEYS = ['chatBackgrounds', 'seen', 'pins', 'muted', 'hiddenBefore', 'hiddenSocial', 'postSync', 'notificationsClearedThrough', 'deletedContacts', 'deletedThreads'];
 const safeKeys = value => Object.keys(value || {}).filter(key => !['__proto__', 'constructor', 'prototype'].includes(key));
 const pick = (value, keys) => Object.fromEntries(keys.filter(key => Object.hasOwn(value || {}, key)).map(key => [key, value[key]]));
 

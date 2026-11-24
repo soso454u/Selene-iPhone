@@ -1,4 +1,5 @@
-const { VERSION, PLAYER, KINDS, active, clip, digest } = require('./domain.cjs');
+const { VERSION, PLAYER, KINDS, active, clip, digest, threadKey } = require('./domain.cjs');
+const { collapseEventConflicts } = require('./event-merge.cjs');
 const { cleanBackgroundMap, imageSource } = require('./backgrounds.cjs');
 const { photoSource, dataImageBlob, validImageBlob } = require('./photos.cjs');
 const { PREF_KEYS, pick, portablePhone } = require('./portable.cjs');
@@ -133,7 +134,7 @@ class Ledger {
     }
 
     cleanEvents(rows, scope) {
-        return rows.map(row => {
+        return collapseEventConflicts(rows.map(row => {
             if (!row || typeof row.id !== 'string' || row.id.length > 120 || !Number.isFinite(row.stamp) || !['phone', 'tavern'].includes(row.origin) || !KINDS.includes(row.kind)
                 || !Number.isInteger(row.anchor?.length) || typeof row.anchor?.key !== 'string' || typeof row.thread !== 'string'
                 || typeof row.speakerId !== 'string' || typeof row.text !== 'string' || !Array.isArray(row.audience) || !Array.isArray(row.participants) || !Array.isArray(row.names) || !Array.isArray(row.audienceNames)
@@ -142,7 +143,7 @@ class Ledger {
             const { id, stamp, origin, kind, anchor, thread, speakerId, speaker, audience, participants, names, audienceNames, floor, revision, rpTime, quote, target, sync, deleted, parser, memory, reference, bubbleGroup, suggestedMemory, echoOf, participation, conflictOf } = row;
             const editHistory = Array.isArray(row.editHistory) ? row.editHistory.filter(item => Number.isInteger(item?.revision) && typeof item.text === 'string').map(item => ({ revision: item.revision, text: clip(item.text) })) : [];
             return { scope, version: VERSION, id, stamp, origin, kind, anchor, thread, speakerId, speaker: clip(speaker, 100), audience, participants, names, audienceNames, floor, revision: Number.isInteger(revision) ? revision : 1, text: clip(row.text), rpTime: clip(rpTime, 80), quote: clip(quote, 300), target: clip(target, 120), sync: sync !== false, deleted: deleted === true, parser: clip(parser, 100), ...(echoOf ? { echoOf: clip(echoOf, 120) } : {}), ...(conflictOf ? { conflictOf: clip(conflictOf, 120) } : {}), ...(participation && JSON.stringify(participation).length < 4000 ? { participation } : {}), memory: clip(memory, 300), reference: clip(reference, 120), bubbleGroup: clip(bubbleGroup, 120), suggestedMemory: clip(suggestedMemory, 300), ...(row.payload && typeof row.payload === 'object' && JSON.stringify(row.payload).length <= 256 * 1024 ? { payload: row.payload } : {}), editHistory };
-        });
+        }));
     }
 
     async backup(scope, trail, people, threads, phone = {}) {
@@ -179,7 +180,7 @@ class Ledger {
             throw new Error('备份类型、版本或聊天文件不匹配');
         }
         const importedPeople = Array.isArray(backup.people) ? backup.people.filter(person => typeof person?.id === 'string' && person.id.startsWith('local:') && typeof person.name === 'string').map(person => ({ id: clip(person.id, 100), name: clip(person.name, 60), notes: clip(person.notes) })).slice(0, 500) : [];
-        const importedThreads = Array.isArray(backup.threads) ? backup.threads.filter(item => typeof item?.id === 'string' && item.id.startsWith('group:') && typeof item.name === 'string' && Array.isArray(item.members) && item.members.every(id => typeof id === 'string')).map(item => ({ id: clip(item.id, 120), name: clip(item.name, 60), members: item.members.slice(0, 25), ...(item.createdNotice ? { createdNotice: clip(item.createdNotice, 500) } : {}) })).slice(0, 500) : [];
+        const importedThreads = Array.isArray(backup.threads) ? backup.threads.filter(item => typeof item?.id === 'string' && typeof item.name === 'string' && Array.isArray(item.members) && item.members.every(id => typeof id === 'string') && (item.id.startsWith('group:') || item.members.length >= 3 && item.id === threadKey(item.members))).map(item => ({ id: clip(item.id, 120), name: clip(item.name, 60), members: item.members.slice(0, 25), ...(item.createdNotice ? { createdNotice: clip(item.createdNotice, 500) } : {}), ...(Number.isInteger(item.anchor?.length) && typeof item.anchor?.key === 'string' ? { anchor: { length: item.anchor.length, key: item.anchor.key }, source: '正文群聊' } : {}) })).slice(0, 500) : [];
         const records = this.cleanEvents(backup.events, scope);
         const merge = (local, imported) => [...new Map((preferBackup ? [...local, ...imported] : [...imported, ...local]).map(item => [item.id, item])).values()];
         const prefs = await this.readMeta(`${scope}:prefs`) || {};

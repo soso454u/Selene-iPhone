@@ -1,6 +1,8 @@
 const { before, active, clip, digest, dialogue, handoffs, lineage, makeEvent, parseStory, serializeHandoff, threadKey } = require('./domain.cjs');
 const { cacheMemoryBlocks } = require('./story-sources.cjs');
 const { STICKERS, xSideStory } = require('./media.cjs');
+const { collapseEventConflicts } = require('./event-merge.cjs');
+const { conversationDeleted } = require('./conversations.cjs');
 
 const echoText = value => String(value || '').replace(/\r\n/g, '\n').trim();
 function messageEchoKey(row, settings) {
@@ -24,6 +26,33 @@ function differentMessageTime(left, right) {
     const clock = value => echoText(value).match(/\b(\d{1,2}:\d{2})(?::\d{2})?\b/)?.[1];
     const date = value => echoText(value).match(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/)?.slice(1).map(Number).join('-');
     return !!((clock(left) && clock(right) && clock(left) !== clock(right)) || (date(left) && date(right) && date(left) !== date(right)));
+}
+
+function matchHandoffEchoes(events, originals, settings) {
+    const remaining = originals.map((row, index) => ({ ...row, index }));
+    const matches = new Map();
+    for (const [index, event] of events.entries()) {
+        const key = messageEchoKey(event, settings);
+        const found = remaining.findIndex(source => key && source.key === key && !differentMessageTime(source.event.rpTime, event.rpTime));
+        if (found >= 0) matches.set(index, remaining.splice(found, 1)[0]);
+    }
+    const mediaKey = row => {
+        const parts = row.payload?.components;
+        if (!parts?.length || parts.some(part => !['photo', 'video'].includes(part.type))) return '';
+        return messageEchoKey({ ...row, text: '', payload: { components: parts.map(part => ({ type: part.type, text: '', fields: {} })) } }, settings);
+    };
+    for (const [index, event] of events.entries()) {
+        if (matches.has(index)) continue;
+        const key = mediaKey(event), previous = matches.get(index - 1), next = matches.get(index + 1);
+        // A rewritten media description is the same send only when exact
+        // neighbouring echoes bracket one unique original attachment.
+        if (!key || !previous || !next) continue;
+        const candidates = remaining.filter(source => source.index > previous.index && source.index < next.index && mediaKey(source.event) === key && !differentMessageTime(source.event.rpTime, event.rpTime));
+        if (candidates.length === 1) {
+            matches.set(index, candidates[0]); remaining.splice(remaining.indexOf(candidates[0]), 1);
+        }
+    }
+    return matches;
 }
 
 async function handedOffMessages({ ledger, scope, chat, trail, floor, settings }) {
@@ -53,9 +82,10 @@ async function blockedPostSync(ledger, scope, trail) {
         const posts = await ledger.query(scope, { limit: Infinity, accept: row => row.kind === 'post' && active(row, trail) && (blocked.has(row.id) || blocked.has(row.reference)) });
         for (const post of posts.rows) { blocked.add(post.id); if (post.reference) blocked.add(post.reference); }
     }
+    blocked.prefs = prefs;
     return blocked;
 }
-const allowedSync = (row, blocked) => row.kind !== 'phoneSnapshot' && !xSideStory(row) && row.sync !== false && (row.kind === 'post' ? !blocked.has(row.id) && !blocked.has(row.reference) : !blocked.has(row.target));
+const allowedSync = (row, blocked) => !row.echoOf && !conversationDeleted(row, blocked.prefs) && row.kind !== 'phoneSnapshot' && !xSideStory(row) && row.sync !== false && (row.kind === 'post' ? !blocked.has(row.id) && !blocked.has(row.reference) : !blocked.has(row.target));
 
 async function pendingSyncEvents(ledger, scope, trail, limit = 35, onlyReveals = false) {
     const blocked = await blockedPostSync(ledger, scope, trail);
@@ -83,10 +113,18 @@ function parserRevision(settings, people) {
 }
 
 async function reconcileStories({ ledger, scope, chat, trail, people, groups, settings, valid }) {
+    // Old cloud backups may contain copies caused solely by derived state.
+    // Mark those aliases locally; retain the records and real edit conflicts.
+    const repairKey = `${scope}:story:conflicts-v1`;
+    if (!await ledger.readMeta(repairKey)) {
+        const saved = await ledger.query(scope, { limit: Infinity });
+        const repaired = collapseEventConflicts(saved.rows).filter((row, index) => row.echoOf !== saved.rows[index].echoOf);
+        if (valid()) await ledger.write(repaired, [{ key: repairKey, value: true }]);
+    }
     if (!settings.reverse) return '';
     const parser = parserRevision(settings, people);
     // Rescan once for echo matching without changing source IDs or image links.
-    const metaKey = `${scope}:story:${parser}:echo-v1`;
+    const metaKey = `${scope}:story:${parser}:echo-v2`;
     const previous = await ledger.readMeta(metaKey) || [];
     const cleared = await ledger.readMeta(`${scope}:clearedStory`) || [];
     const records = [];
@@ -104,6 +142,11 @@ async function reconcileStories({ ledger, scope, chat, trail, people, groups, se
         const stamp = Date.parse(row.gen_finished || row.send_date) || now - (chat.length - floor) * 100;
         const items = parseStory(row, people, settings);
         const echoes = items.some(item => item.kind === 'message') ? await handedOffMessages({ ledger, scope, chat, trail, floor, settings }) : [];
+        const threadFor = item => {
+            const candidates = groups.filter(group => threadKey(group.members) === threadKey(item.participants));
+            return ['post', 'comment', 'like', 'collect', 'repost', 'follow'].includes(item.kind) ? item.thread || 'moments' : item.thread || (candidates.length === 1 ? candidates[0].id : undefined);
+        };
+        const matchedEchoes = matchHandoffEchoes(items.map(item => makeEvent(scope, trail, { ...item, thread: threadFor(item) }, people)), echoes, settings);
         for (const [index, item] of items.entries()) {
             const signature = digest(JSON.stringify(item));
             if (seen.has(signature)) continue;
@@ -119,15 +162,13 @@ async function reconcileStories({ ledger, scope, chat, trail, people, groups, se
                     item.audience = item.audience.filter(id => target.audience.includes(id));
                 }
             }
-            const thread = ['post', 'comment', 'like', 'collect', 'repost', 'follow'].includes(item.kind) ? item.thread || 'moments' : groups.find(group => threadKey(group.members) === threadKey(item.participants))?.id;
+            const thread = threadFor(item);
             const event = makeEvent(scope, trail, { ...item, thread }, people, {
                 id: `st:${parser}:${anchor.key}:${signature}`, origin: 'tavern', floor, anchor, stamp: stamp + index,
                 parser, sync: false, reference: clip(item.reference, 120),
             });
-            const key = messageEchoKey(event, settings);
-            const match = key ? echoes.findIndex(source => source.key === key && !differentMessageTime(source.event.rpTime, event.rpTime)) : -1;
-            if (match >= 0) {
-                const source = echoes.splice(match, 1)[0].event;
+            if (matchedEchoes.has(index)) {
+                const source = matchedEchoes.get(index).event;
                 const previous = await ledger.get(scope, event.id);
                 if (previous?.origin === 'tavern' && previous.echoOf !== source.id) echoUpdates.push({ ...previous, echoOf: source.id, revision: previous.revision + 1 });
                 continue;

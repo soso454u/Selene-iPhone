@@ -11,6 +11,7 @@ const { MusicIsland } = require('./music-island.cjs');
 const { MusicApp } = require('./music-app.cjs');
 const { CharacterPhone } = require('./character-phone.cjs');
 const { wallpaperSource } = require('./wallpapers.cjs');
+const { contactDeleted } = require('./conversations.cjs');
 
 function chatTime(value) {
     const raw = String(value || '').trim();
@@ -845,7 +846,7 @@ class Phone {
             done.disabled = group ? !added.length : chosen.size < 2;
             for (const row of list.children) { row.hidden = !row.dataset.name.includes(search.value.trim().toLocaleLowerCase()); }
         };
-        const contacts = state.people.filter(person => person.id !== PLAYER).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+        const contacts = state.people.filter(person => person.id !== PLAYER && (!contactDeleted(person, state.prefs) || fixed.has(person.id))).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
         for (const person of contacts) {
             const control = this.input('checkbox', chosen.has(person.id)); control.disabled = fixed.has(person.id);
             control.setAttribute('aria-label', person.name);
@@ -896,7 +897,7 @@ class Phone {
     }
 
     peopleChecks(state, selected = []) {
-        const items = state.people.filter(person => person.id !== PLAYER).map(person => [person, this.input('checkbox', selected.includes(person.id))]);
+        const items = state.people.filter(person => person.id !== PLAYER && !contactDeleted(person, state.prefs)).map(person => [person, this.input('checkbox', selected.includes(person.id))]);
         return { node: this.el('div', 'checks', ...items.map(([person, control]) => this.el('label', '', control, person.name))), selected: () => items.filter(([, input]) => input.checked).map(([person]) => person.id) };
     }
 
@@ -924,6 +925,7 @@ class Phone {
             if (row.quote || payload?.components?.some(part => part.type === 'reply')) bubble.append(this.el('span', 'bubble-quote', row.quote || payload.components.find(part => part.type === 'reply')?.fields?.quote || '引用消息'));
             const hasComponent = payload?.components?.length;
             if (hasComponent === 1 && ['voice', 'red', 'pay', 'loc', 'sticker'].includes(payload.components[0].type)) bubble.classList.add(`wechat-${payload.components[0].type}-bubble`);
+            if (hasComponent === 1 && payload.components[0].type === 'photo' && !payload.caption) bubble.classList.add('wechat-photo-bubble');
             if (hasComponent && payload.caption) bubble.append(this.el('span', '', payload.caption));
             if (!hasComponent) bubble.append(this.el('span', '', row.kind === 'call' ? `☎ ${row.text}` : row.text));
             else for (const [index, part] of payload.components.entries()) bubble.append(this.messageComponent(part, { sourceId: row.id, index, ownerId: row.speakerId }));
@@ -1024,6 +1026,9 @@ class Phone {
             this.el('div', 'chat-detail-section', this.el('label', 'chat-detail-row', this.el('span', '', '消息免打扰'), mute), this.el('label', 'chat-detail-row', this.el('span', '', '置顶聊天'), pin)),
             this.el('div', 'chat-detail-section', row('设置当前聊天背景', () => this.backgroundEditor(state, { type: 'chat', thread: thread.id, scope: state.scope }))),
             this.el('div', 'chat-detail-section', row('清空聊天记录', clear), state.prefs.hiddenBefore?.[thread.id] ? row('恢复聊天显示', () => update('restoreChatDisplay')) : null),
+            this.el('div', 'chat-detail-section', group
+                ? row('删除群聊', () => this.removeConversation(state, group, true))
+                : row('删除联系人', () => this.removeConversation(state, state.people.find(person => person.id === thread.members.find(id => id !== PLAYER)), false))),
             this.el('div', 'chat-detail-section', row('角色与回复设置', () => this.dialog('角色与回复', this.el('div', 'form', thread.members.length > 2 ? speaker : null,
                 this.button('请求回复', () => { this.closeDialog(); this.action('reply', { actor: speaker.value }); }, 'outline'),
                 this.button('角色主动发消息', () => { this.closeDialog(); this.action('initiative', { actor: speaker.value }); }, 'outline'),
@@ -1301,12 +1306,18 @@ class Phone {
         if (['photo', 's-image'].includes(part.type)) {
             const generated = this.state?.albumRows?.find(row => row.sourceId === photoContext.sourceId && row.index === (photoContext.index || 0) && row.generated);
             const url = photoSource(generated?.url || this.state?.albumRows?.find(row => row.id === fields.photoId)?.url || fields.src || fields.url);
-            if (url) { const image = this.el('img', 'im-photo'); image.src = url; image.alt = part.text || '图片'; image.loading = 'lazy'; if (!photoContext.readOnly) image.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, url, description: part.text, prompt: fields.prompt, title: '图片' }); }; return image; }
-        }
-        if (part.type === 'photo') {
-            if (photoContext.readOnly) return this.el('span', 'im-component', this.el('strong', '', '图片说明'), this.el('span', '', part.text));
-            const preview = this.el('span', 'im-component im-photo-description', this.el('strong', '', '图片说明'), this.el('span', '', part.text), this.el('small', '', '点击编辑提示词或选择生图'));
-            preview.onclick = event => { event.stopPropagation(); this.imageEditor({ ...photoContext, description: part.text, prompt: fields.prompt }); }; return preview;
+            if (url) {
+                const image = this.el('img', 'im-photo'); image.src = url; image.alt = part.text || '图片'; image.loading = 'lazy';
+                if (!photoContext.readOnly) image.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, url, description: part.text, prompt: fields.prompt, title: '聊天图片' }); };
+                return image;
+            }
+            const card = this.el('span', 'im-photo-card',
+                this.el('span', 'im-photo-card-head', this.icon('photo'), this.el('small', '', '图片')),
+                this.el('span', 'im-photo-card-art', this.icon('photo')),
+                this.el('span', 'im-photo-card-caption', part.text || '暂无画面说明'),
+                this.el('span', 'im-photo-card-footer', this.el('small', '', photoContext.readOnly ? '画面说明' : '查看图片说明'), this.icon('right')));
+            if (!photoContext.readOnly) card.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, description: part.text, prompt: fields.prompt, title: '聊天图片' }); };
+            return card;
         }
         const names = { trans: '翻译', reply: '回复', photo: '图片', video: '视频画面', voice: '语音', loc: '位置', red: '红包', pay: '转账', call: '通话', file: '文件', link: '链接', sys: '系统提示', 's-image': '图片说明', 's-video': '视频画面' };
         return this.el('span', `im-component im-${part.type}`, this.el('strong', '', names[part.type] || part.type), this.el('span', '', part.text || fields.name || fields.title || ''),
@@ -1503,16 +1514,33 @@ class Phone {
 
     contacts(state) {
         const list = this.el('div', 'list');
-        for (const person of state.people.filter(person => person.id !== PLAYER)) {
+        for (const person of state.people.filter(person => person.id !== PLAYER && !contactDeleted(person, state.prefs))) {
             const row = this.button('', () => this.navigate('chat', threadKey([PLAYER, person.id])), 'list-row');
             row.append(this.avatar(person), this.el('span', 'list-info', this.el('strong', '', person.name), this.el('small', '', person.source || '手动联系人')), this.icon('right'));
-            list.append(row);
+            list.append(this.el('div', 'contact-manage-row', row, this.iconButton('trash', `删除${person.name}`, () => this.removeConversation(state, person, false))));
         }
         return this.el('div', 'screen', this.heading('通讯录', 'PEOPLE', this.iconButton('add', '新增联系人', () => {
             const name = this.input('text', '', '姓名');
             const notes = this.el('textarea'); notes.placeholder = '设定或备注（可选）'; notes.rows = 4;
             this.dialog('新增联系人', this.el('div', 'form', name, notes), () => this.action('addContact', { name: name.value, notes: notes.value }));
-        })), this.button('重新扫描角色卡与适用世界书', () => this.action('scan'), 'outline'), state.scanFailed ? this.small('世界书扫描不可用，目前仅列出角色卡与手动联系人。') : null, list);
+        })), this.el('div', 'actions', this.button('重新扫描', () => this.action('scan'), 'outline'), this.button('已删除', () => this.deletedConversations(this.state), 'outline')), state.scanFailed ? this.small('世界书扫描不可用，目前仅列出角色卡与手动联系人。') : null, list);
+    }
+
+    removeConversation(state, target, group) {
+        if (!target) return;
+        this.dialog(group ? '删除群聊？' : '删除联系人？', this.el('div', 'form',
+            this.el('strong', '', target.name), this.small(group
+                ? '从当前聊天的小手机移除这个群聊，并停止交接其中尚未同步的消息。历史记录保留，可在通讯录 → 已删除恢复。'
+                : '从当前聊天的小手机通讯录和私聊列表移除，并停止交接尚未同步的私聊。群内身份和历史记录保留；不会删除酒馆角色卡或世界书。可在通讯录 → 已删除恢复。'),
+            this.button('确认删除', async () => { await this.action(group ? 'deleteGroup' : 'deleteContact', { id: target.id }); }, 'outline danger')));
+    }
+
+    deletedConversations(state) {
+        const contacts = Object.entries(state.prefs.deletedContacts || {}).filter(([, name]) => name).map(([id, name]) => ({ id, name, kind: 'Contact' }));
+        const groups = state.groups.filter(group => state.prefs.deletedThreads?.[group.id]).map(group => ({ ...group, kind: 'Group' }));
+        this.dialog('已删除的联系人与群聊', this.el('div', 'form', this.small('恢复后显示原有记录；不会重新发送已交接的消息。'),
+            ...[...contacts, ...groups].map(item => this.el('div', 'deleted-conversation-row', this.el('span', '', item.name), this.button('恢复', async () => { await this.action(`restore${item.kind}`, { id: item.id }); }, 'outline'))),
+            !contacts.length && !groups.length ? this.small('暂无已删除的联系人或群聊。') : null));
     }
 
     socialCount(state, post, kind) {
@@ -2120,7 +2148,7 @@ class Phone {
                 if (result && button.isConnected) this.photoViewer({ ...photo, ...result }, gallery);
                 else button.disabled = false;
             }, 'outline'),
-            photo.description ? this.button(url ? '重新生成图片' : '选择是否生图', () => this.imageEditor(photo), 'outline') : null,
+            photo.description ? this.button(url ? '重新生成图片' : '编辑提示词与生图', () => this.imageEditor(photo), 'outline') : null,
             stored ? this.button('删除图片', async () => {
                 if (await this.action('deletePhoto', { id: stored.id })) { if (layer) layer.remove(); else this.closeDialog(); }
             }, 'outline danger') : null);

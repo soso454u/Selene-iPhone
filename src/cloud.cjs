@@ -2,31 +2,20 @@ const { digest } = require('./domain.cjs');
 const { fingerprint } = require('./resources.cjs');
 const { backupState, stateHashes, mergeBackupData } = require('./portable.cjs');
 const { fetchTavern, isHtmlResponse } = require('./host.cjs');
+const { mergeEvents } = require('./event-merge.cjs');
 
 const FIELD = 'tavern_pocket_v1';
-function mergeEvents(local, remote) {
-    const merged = new Map(remote.map(row => [row.id, row]));
-    for (const row of local) {
-        const previous = merged.get(row.id);
-        if (!previous || (row.revision ?? 1) > (previous.revision ?? 1) || ((row.revision ?? 1) === (previous.revision ?? 1) && row.deleted && !previous.deleted)) merged.set(row.id, row);
-        else if (fingerprint({ ...row, scope: '' }) !== fingerprint({ ...previous, scope: '' }) && (row.revision ?? 1) === (previous.revision ?? 1)) {
-            merged.set(`${row.id}:conflict`, { ...row, id: `conflict:${digest(JSON.stringify(row))}`, sync: false, conflictOf: row.id });
-        }
-    }
-    return [...merged.values()];
-}
-
 class Cloud {
     constructor(host, ledger, portable = {}) { Object.assign(this, { host, ledger, portable }); this.status = '尚未保存'; }
     async backup(session) {
         const phone = await this.portable.capture?.(session) || {};
-        return this.ledger.backup(session.scope, session.trail, session.manual, session.groups, phone);
+        return this.ledger.backup(session.scope, session.trail, session.manual, session.manualGroups || session.groups, phone);
     }
     async restore(backup, session, preferBackup = false) {
         if (!session.valid()) throw new Error('聊天已切换，未恢复。');
         this.applying = true;
         try {
-            const count = await this.ledger.restore(backup, session.scope, session.manual, session.groups, preferBackup);
+            const count = await this.ledger.restore(backup, session.scope, session.manual, session.manualGroups || session.groups, preferBackup);
             if (session.valid()) await this.portable.apply?.(backup.phone, session);
             return count;
         } finally { this.applying = false; }

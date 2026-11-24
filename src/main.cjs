@@ -18,6 +18,7 @@ const { profileValues, saveProfile, cleanCredentials, generationConnection } = r
 const { PAGES, cleanBackground, selectBackground, backgroundStyle } = require('./backgrounds.cjs');
 const { Wallpapers, wallpaperImage } = require('./wallpapers.cjs');
 const { resolveRpTime } = require('./story-time.cjs');
+const { contactDeleted, conversationDeleted, conversationGroups, privateThreadDeleted } = require('./conversations.cjs');
 
 const KEY = 'tavern-pocket:v1';
 
@@ -170,7 +171,7 @@ function start(frame) {
         timer = host.setTimeout(() => refresh().then(maybeInitiate).catch(fail), 110);
     };
     const sync = new Sync({ ledger, getState: () => clearing ? null : getState(), onError: fail, onChange: schedule, onSourcesChanged: () => { scan = null; prepared = null; } });
-    const accepts = (session, event) => !event.echoOf && (event.origin === 'phone' || (settings.reverse && !!session.parser && event.parser === session.parser));
+    const accepts = (session, event) => !event.echoOf && !conversationDeleted(event, session.prefs) && (event.origin === 'phone' || (settings.reverse && !!session.parser && event.parser === session.parser));
 
     async function loadSession(forceScan = false) {
         const fresh = getContext();
@@ -197,17 +198,21 @@ function start(frame) {
         if (!valid()) return null;
         const parser = await reconcileStories({ ledger, scope, chat, trail, people, groups: groups || [], settings, valid });
         if (!valid()) return null;
+        const groupEvents = await ledger.query(scope, { limit: Infinity, accept: row => !row.echoOf && (row.origin === 'phone' || !!parser && row.parser === parser) && row.participants?.length >= 3 });
+        const knownGroups = conversationGroups(groups || [], groupEvents.rows, trail);
+        if (!valid()) return null;
         const card = st.characters?.[st.characterId];
         const cardScoped = !st.groupId && styles.scoped(card);
-        return { ...state, cardScoped, cardBound: !st.groupId && !!boundStyle(card), cardAvatar: !st.groupId ? card?.avatar : undefined, cardName: card?.name || '', trail, people, groups: groups || [], prefs: cardScoped ? { ...prefs, chatBackgrounds: {} } : prefs || {}, manual: manual || [], parser, valid, scanFailed: scan?.failed };
+        return { ...state, cardScoped, cardBound: !st.groupId && !!boundStyle(card), cardAvatar: !st.groupId ? card?.avatar : undefined, cardName: card?.name || '', trail, people, groups: knownGroups, manualGroups: groups || [], prefs: cardScoped ? { ...prefs, chatBackgrounds: {} } : prefs || {}, manual: manual || [], parser, valid, scanFailed: scan?.failed };
     }
 
     function resolveThreads(session, rows) {
         const { people, groups, prefs } = session;
-        const contacts = people.filter(person => person.id !== PLAYER && (person.source !== '正文手机' || rows.some(row => ['message', 'call'].includes(row.kind) && row.participants.includes(person.id) && row.participants.includes(PLAYER)))).map(person => ({ id: threadKey([PLAYER, person.id]), members: [PLAYER, person.id], name: socialNickname(person, settings), avatar: person.avatar, source: person.source || '手动联系人' }));
-        const threads = new Map([...contacts, ...groups].map(thread => [thread.id, thread]));
+        const contacts = people.filter(person => person.id !== PLAYER && !contactDeleted(person, prefs) && (person.source !== '正文手机' || rows.some(row => ['message', 'call'].includes(row.kind) && row.participants.length === 2 && row.participants.includes(person.id) && row.participants.includes(PLAYER)))).map(person => ({ id: threadKey([PLAYER, person.id]), members: [PLAYER, person.id], name: socialNickname(person, settings), avatar: person.avatar, source: person.source || '手动联系人' }));
+        const threads = new Map([...contacts, ...groups].filter(thread => !prefs.deletedThreads?.[thread.id] && !privateThreadDeleted(thread.members, people, prefs) && thread.members.includes(PLAYER)).map(thread => [thread.id, { ...thread }]));
         for (const row of rows) {
             if (row.kind !== 'message' && row.kind !== 'call') continue;
+            if (conversationDeleted(row, prefs) || privateThreadDeleted(row.participants, people, prefs)) continue;
             if (!threads.has(row.thread)) threads.set(row.thread, { id: row.thread, name: row.names.filter(name => name !== session.context.name1).join('、') || row.speaker, members: row.participants, source: '正文同步' });
             const thread = threads.get(row.thread);
             thread.muted = prefs.muted?.includes(thread.id) === true;
@@ -334,9 +339,12 @@ function start(frame) {
         const prefs = await ledger.readMeta(`${session.scope}:prefs`) || {};
         if (!session.valid()) throw new Error('聊天或有效分支已变化，未保存');
         const stamp = Math.max(Date.now(), (existing.rows[0]?.stamp || 0) + 1);
-        const rows = inputs.map((input, index) => makeEvent(session.scope, session.trail, { rpTime: session.rpTime, ...input }, session.people, { stamp: stamp + index,
+        const rows = inputs.map((input, index) => {
+            const group = input.participants?.length >= 3 && session.groups.find(group => group.id === input.thread);
+            return makeEvent(session.scope, session.trail, { rpTime: session.rpTime, ...input, ...(group ? { payload: { ...input.payload, group: { key: group.id, name: group.name } } } : {}) }, session.people, { stamp: stamp + index,
             ...(['post', 'comment'].includes(input.kind) ? { speaker: socialNickname(session.people.find(person => person.id === input.speakerId), settings) || input.speaker } : {}),
-            ...input.extra, sync: !xSideStory(input) && settings.sync !== 'off' && (['comment', 'like', 'collect', 'repost', 'follow'].includes(input.kind) && typeof prefs.postSync?.[input.target] === 'boolean' ? prefs.postSync[input.target] : typeof input.extra?.sync === 'boolean' ? input.extra.sync : ['message', 'call'].includes(input.kind || 'message') || settings.socialSync[input.thread || 'moments'] === true) }));
+            ...input.extra, sync: !xSideStory(input) && settings.sync !== 'off' && (['comment', 'like', 'collect', 'repost', 'follow'].includes(input.kind) && typeof prefs.postSync?.[input.target] === 'boolean' ? prefs.postSync[input.target] : typeof input.extra?.sync === 'boolean' ? input.extra.sync : ['message', 'call'].includes(input.kind || 'message') || settings.socialSync[input.thread || 'moments'] === true) });
+        });
         if (rows.some(row => !row.text)) throw new Error('请输入消息内容');
         await ledger.write([...rows, ...extra], meta);
         queueCloud(session);
@@ -880,6 +888,26 @@ function start(frame) {
             setNotice('已转发到所选手机会话。'); return refresh();
         }
         if (name === 'cloudSave' || name === 'cloudRestore') { await cloud.sync(session, name === 'cloudRestore'); setNotice(cloud.status); return refresh(); }
+        if (['deleteContact', 'restoreContact', 'deleteGroup', 'restoreGroup'].includes(name)) {
+            if (!session.valid()) throw new Error('聊天已变化，请重试。');
+            if (name.endsWith('Contact')) {
+                const person = session.people.find(person => person.id === data.id);
+                const personName = person?.name || session.prefs.deletedContacts?.[data.id];
+                if (data.id === PLAYER || !personName) throw new Error('该联系人不可删除或恢复。');
+                const deletedContacts = { ...session.prefs.deletedContacts };
+                for (const [id, value] of Object.entries(deletedContacts)) if (value === personName) deletedContacts[id] = '';
+                deletedContacts[data.id] = name === 'deleteContact' ? personName : '';
+                await savePrefs(session, { deletedContacts });
+            } else {
+                const group = session.groups.find(group => group.id === data.id && group.members.includes(PLAYER));
+                if (!group) throw new Error('该群聊不可删除或恢复。');
+                await savePrefs(session, { deletedThreads: { ...session.prefs.deletedThreads, [group.id]: name === 'deleteGroup' } });
+            }
+            dataRevision++; generation?.cancel(); transport.cancel();
+            phone.closeDialog(); phone.navigate(name.endsWith('Contact') ? 'contacts' : 'messages', null, false);
+            queueCloud(); setNotice(name.startsWith('delete') ? '已从小手机移除，未交接会话停止同步；可在通讯录的「已删除」恢复。' : '已恢复会话与历史记录。');
+            return refresh();
+        }
         if (name === 'arm') { sync.arm(scope); setNotice('已安排在下一条正常正文用户消息中交接。'); }
         else if (name === 'addContact') {
             const contact = clip(data.name, 60);
@@ -897,7 +925,7 @@ function start(frame) {
             if (members.length < 3) throw new Error('请至少选择两位联系人');
             const id = `group:${newId()}`;
             const names = session.people.filter(person => person.id !== PLAYER && members.includes(person.id)).map(person => person.name);
-            await ledger.saveMeta(`${scope}:groups`, [...session.groups, { id, name: '群聊', members, createdNotice: `你邀请${names.join('、')}加入了群聊` }]);
+            await ledger.saveMeta(`${scope}:groups`, [...session.manualGroups, { id, name: '群聊', members, createdNotice: `你邀请${names.join('、')}加入了群聊` }]);
             phone.navigate('chat', id, false);
         } else if (['renameGroup', 'addGroupMembers'].includes(name)) {
             const group = session.groups.find(item => item.id === data.id && item.members.includes(PLAYER));
@@ -911,7 +939,7 @@ function start(frame) {
                 const added = (Array.isArray(data.members) ? data.members : []).filter(id => session.people.some(person => person.id === id));
                 updated = { ...group, members: unique([...group.members, ...added]) };
             }
-            await ledger.saveMeta(`${scope}:groups`, session.groups.map(item => item.id === group.id ? updated : item));
+            await ledger.saveMeta(`${scope}:groups`, [...session.manualGroups.filter(item => item.id !== group.id), updated]);
         } else if (name === 'pin' && thread) {
             const pins = new Set(session.prefs.pins || []);
             if (pins.has(thread.id)) pins.delete(thread.id); else pins.add(thread.id);
