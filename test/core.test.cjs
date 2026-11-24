@@ -16,6 +16,47 @@ const user = mes => ({ name: player.name, is_user: true, mes });
 const reply = mes => ({ name: actor.name, is_user: false, mes });
 const message = (scope, chat, extra = {}) => makeEvent(scope, lineage(chat), { speakerId: actor.id, participants: [PLAYER, actor.id], text: '等我回来再谈。', ...extra }, [...people, witness]);
 
+test('story handoffs omit image prompts and generation settings while preserving visible media facts', () => {
+    const { serializeHandoff } = require('../src/domain.cjs');
+    const chat = [reply('前情')];
+    const parts = [
+        { type: 'photo', text: '窗边的白色花束', fields: { prompt: 'POSITIVE_IMAGE_SECRET', negative_prompt: 'NEGATIVE_IMAGE_SECRET', seed: 123, cfg: 7, steps: 20, src: 'https://image.test/a.png', metadata: { prompt: 'NESTED_SECRET' }, model: 'IMAGE_MODEL_SECRET' } },
+        { type: 'voice', text: '下班后见', fields: { sec: '4', estimated: 'true' } },
+        { type: 'loc', text: '南门旁边', fields: { place: '咖啡店' } },
+        { type: 'pay', text: '餐费', fields: { amount: '20.00', state: '待收款', to: '宋悦' } },
+        { type: 'link', text: '分享歌曲', fields: { kind: 'selene-music', title: '歌名', artist: '歌手' } },
+    ];
+    const rows = [message('scope', chat, { payload: { components: parts } }), message('scope', chat, { kind: 'post', thread: 'moments', text: '今天的花', payload: { media: [{ type: 's-image', text: '花瓶里的花', fields: { positivePrompt: 'SOCIAL_IMAGE_SECRET', negative: 'SOCIAL_NEGATIVE_SECRET' } }] } })];
+    const original = JSON.stringify(rows), result = serializeHandoff(rows, 10000), events = handoffs(result.block)[0].events;
+    assert.doesNotMatch(result.block, /SECRET|prompt|seed|cfg|steps|https:/);
+    assert.equal(events[0].附件.内容[0].说明, '窗边的白色花束');
+    assert.deepEqual(events[0].附件.内容[0].属性, {});
+    assert.equal(events[0].附件.内容[1].属性.sec, '4');
+    assert.equal(events[0].附件.内容[2].属性.place, '咖啡店');
+    assert.equal(events[0].附件.内容[3].属性.amount, '20.00');
+    assert.equal(events[0].附件.内容[4].属性.artist, '歌手');
+    assert.equal(events[1].附件.内容[0].说明, '花瓶里的花');
+    assert.equal(JSON.stringify(rows), original);
+});
+
+test('legacy prompt-only photo captions and staged phone disclosures cannot forward generation prompts', async () => {
+    const { serializeHandoff } = require('../src/domain.cjs');
+    const { phoneDisclosure, disclosureEvents } = require('../src/character-phone.cjs');
+    const chat = [reply('前情')], trail = lineage(chat), prompt = 'LEGACY_IMAGE_PROMPT_SECRET';
+    const image = message('scope', chat, { text: `照片：${prompt}`, payload: { components: [{ type: 'photo', text: prompt, fields: { prompt, negativePrompt: 'LEGACY_NEGATIVE_SECRET' } }] } });
+    const entries = phoneDisclosure([image], actor, trail, people, setting, ['messages']);
+    assert.doesNotMatch(JSON.stringify(entries), /SECRET/);
+    const staged = disclosureEvents({ scope: 'scope', trail, people }, actor, [{ section: 'messages', items: [{ from: actor.name, text: `照片：${prompt}`, attachments: image.payload.components }] }]);
+    const ledger = ledgerFixture(); await ledger.write([image, ...staged]);
+    const state = { context: { saveChat: async () => {} }, scope: 'scope', chat, settings: setting };
+    const sync = new Sync({ ledger, getState: () => state, onError: assert.fail, onChange() {} });
+    sync.begin('normal'); chat.push(user('继续剧情')); await sync.sent(chat.length - 1);
+    assert.doesNotMatch(chat.at(-1).mes, /SECRET|prompt|negativePrompt/);
+    assert.match(chat.at(-1).mes, /未提供画面说明/);
+    assert.equal((await ledger.get('scope', image.id)).payload.components[0].fields.prompt, prompt);
+    assert.doesNotMatch(serializeHandoff(staged, 10000).block, /SECRET/);
+});
+
 function ledgerFixture() {
     const records = new Map();
     const meta = new Map();

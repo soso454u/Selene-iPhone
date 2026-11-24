@@ -1,4 +1,4 @@
-const { PLAYER, active, before, clip, digest, makeEvent, socialAliases, socialNickname, threadKey, unique } = require('./domain.cjs');
+const { PLAYER, active, before, clip, digest, makeEvent, socialAliases, socialNickname, threadKey, unique, storyDisclosure } = require('./domain.cjs');
 
 const PHONE_SECTIONS = { messages: ['聊天记录', 'messages'], notes: ['备忘录', 'edit'], history: ['浏览记录', 'search'], cart: ['购物车', 'cart'] };
 const PHONE_CONTENT_PROTOCOL = `本轮只准备指定角色手机里的私人生活记录，供玩家以作者视角查看，不实际发送消息，不推进正文或 RP 时间。
@@ -96,7 +96,7 @@ function phoneDisclosure(rows, owner, trail, people, settings, sections, thread 
     return phoneSections(sections).map(section => {
         const items = section === 'messages' ? [...chats].reverse().filter(row => !thread || row.thread === thread).map(row => ({ from: row.speaker, participants: row.names, text: row.text, time: row.rpTime || '', ...(row.quote ? { quote: row.quote } : {}),
             ...(row.payload?.components?.length ? { attachments: row.payload.components.map(part => ({ type: part.type, text: part.text, fields: Object.fromEntries(Object.entries(part.fields || {}).filter(([key]) => !['src', 'url'].includes(key))) })) } : {}) })) : contents[section]?.items || [];
-        return { section, items };
+        return storyDisclosure({ section, items });
     });
 }
 

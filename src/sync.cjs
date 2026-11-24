@@ -1,4 +1,4 @@
-const { before, active, clip, digest, dialogue, handoffs, lineage, makeEvent, parseStory, serializeHandoff, threadKey } = require('./domain.cjs');
+const { before, active, clip, digest, dialogue, handoffs, lineage, makeEvent, parseStory, serializeHandoff, storyPictureText, threadKey } = require('./domain.cjs');
 const { cacheMemoryBlocks } = require('./story-sources.cjs');
 const { STICKERS, xSideStory } = require('./media.cjs');
 const { collapseEventConflicts } = require('./event-merge.cjs');
@@ -64,7 +64,7 @@ async function handedOffMessages({ ledger, scope, chat, trail, floor, settings }
     const originals = await Promise.all(entries.map(async item => {
         if (typeof item?.id !== 'string' || trail.byEvent.get(item.id)?.floor !== prior) return null;
         const event = await ledger.get(scope, item.id);
-        return event?.origin === 'phone' && event.kind === 'message' && active(event, trail) && event.text === item.原话 ? { event, key: messageEchoKey(event, settings) } : null;
+        return event?.origin === 'phone' && event.kind === 'message' && active(event, trail) && storyPictureText(event.text, event.payload?.components) === item.原话 ? { event, key: messageEchoKey(event, settings) } : null;
     }));
     return originals.filter(Boolean);
 }
