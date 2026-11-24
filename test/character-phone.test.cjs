@@ -160,3 +160,27 @@ test('cancelled or other-branch disclosures do not inject, and current-chat sync
     assert.deepEqual((await ledger.query('other-scope')).rows, []);
     assert.throws(() => disclosureEvents({ scope: 'scope', trail, people }, actor, [{ section: 'notes', items: [{ content: '字'.repeat(25000) }] }]), /24000/);
 });
+
+
+test('larger historical generation plans validate counts, preserve old dates and keep all selected records', () => {
+    const { phoneGenerationPlan, PHONE_CONTENT_PROTOCOL } = require('../src/character-phone.cjs');
+    assert.equal(phoneGenerationPlan().聊天会话数, 6);
+    assert.equal(phoneGenerationPlan().每个生活栏目条数, 10);
+    assert.equal(phoneGenerationPlan({conversations:12,items:30}).每个生活栏目条数, 30);
+    for (const input of [{items:31},{items:0},{conversations:13},{conversations:1.5}]) assert.throws(()=>phoneGenerationPlan(input), /数量无效/);
+    assert.match(PHONE_CONTENT_PROTOCOL, /几年前/);
+    const notes = Array.from({length:30}, (_,i)=>({title:'往日记录'+i,content:'普通日常',time:'几年前'}));
+    const messages = Array.from({length:6}, ()=>({peer:'周晚晚',messages:Array.from({length:20},()=>({from:'owner',text:'日常',time:'三天前 12:00'}))}));
+    const clean = parsePhoneContents(JSON.stringify({notes,messages,cart:[{name:'花瓶',time:'2021年5月1日'}]}), ['notes','messages','cart']);
+    assert.equal(clean.notes.length,30); assert.equal(clean.messages.flatMap(x=>x.messages).length,120); assert.equal(clean.cart[0].time,'2021年5月1日');
+    assert.throws(()=>parsePhoneContents(JSON.stringify({notes:[...notes,notes[0]]}), 'notes'), /上限/);
+    assert.throws(()=>parsePhoneContents(JSON.stringify({messages:[...messages,{peer:'周晚晚',messages:[{from:'owner',text:'超出'}]}]}), 'messages'), /120/);
+    const trail=lineage([row('剧情')]), people=[player,actor,{id:'zhou',name:'周晚晚'}];
+    const saved = makeEvent('scope',trail,{kind:'phoneSnapshot',speakerId:actor.id,participants:[actor.id],audience:[actor.id],rpTime:'2025年11月23日',payload:{section:'messages',items:clean.messages}},people,{sync:false});
+    assert.equal(characterMessages([saved], actor.id, trail, people, settings)[0].rpTime, '2025年11月20日 12:00');
+    const sessions = {...saved, payload:{section:'messages',items:[
+        {peer:'周晚晚',messages:[{from:'owner',text:'早年第一句',time:'2021年5月1日 10:00'},{from:'peer',text:'早年第二句',time:'2021年5月1日 10:01'}]},
+        {peer:'周晚晚',messages:[{from:'owner',text:'近期第一句',time:'2025年11月20日 12:00'},{from:'peer',text:'近期第二句',time:'2025年11月20日 12:01'}]}
+    ]}};
+    assert.deepEqual(characterMessages([sessions], actor.id, trail, people, settings).reverse().map(r=>r.text), ['早年第一句','早年第二句','近期第一句','近期第二句']);
+});

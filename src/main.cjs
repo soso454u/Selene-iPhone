@@ -1,6 +1,6 @@
 const { RequestQueue } = require('./request-queue.cjs');
 const { PLAYER, active, before, clip, digest, dialogue, eventStatus, lineage, makeEvent, newId, threadKey, unique, socialAliases, socialNickname, screenPeople } = require('./domain.cjs');
-const { PHONE_SECTIONS, phoneSections, parsePhoneContents, phoneContents, characterMessages, phoneDisclosure, disclosureEvents } = require('./character-phone.cjs');
+const { PHONE_SECTIONS, phoneSections, phoneGenerationPlan, parsePhoneContents, phoneContents, characterMessages, phoneDisclosure, disclosureEvents } = require('./character-phone.cjs');
 const { DEFAULTS, phoneSettings, normalizeOutput, basePeople, scanPeople, buildContext, loadModule } = require('./context.cjs');
 const { DEFAULT_PRESET, PRESET_LIMIT, validatePreset, postCounts, SOCIAL_COMMON_PROMPT, cleanPlatformPrompts } = require('./phone-preset.cjs');
 const { Ledger, conversationMemory, checkpoint } = require('./storage.cjs');
@@ -18,7 +18,7 @@ const { profileValues, saveProfile, cleanCredentials, generationConnection } = r
 const { PAGES, cleanBackground, selectBackground, backgroundStyle } = require('./backgrounds.cjs');
 const { Wallpapers, wallpaperImage } = require('./wallpapers.cjs');
 const { resolveRpTime } = require('./story-time.cjs');
-const { contactDeleted, conversationDeleted, conversationGroups, conversationThreads, characterConversation } = require('./conversations.cjs');
+const { contactDeleted, conversationDeleted, conversationGroups, conversationThreads, characterConversation, characterGroupMembers, characterGroupConversation } = require('./conversations.cjs');
 
 const KEY = 'tavern-pocket:v1';
 
@@ -237,18 +237,23 @@ function start(frame) {
         }
         rows = await photos.withPrompts(scope, rows);
         rows = await photos.withDescriptions(scope, rows, trail, session.parser);
+        let characterRows = characterRecords?.rows;
+        if (characterRows) {
+            characterRows = await photos.withPrompts(scope, characterRows);
+            characterRows = await photos.withDescriptions(scope, characterRows, trail, session.parser);
+        }
         const threads = resolveThreads(session, overview?.rows ?? rows);
         const thread = threads.find(item => item.id === exact) || (exact && rows.length ? { id: exact, name: rows[0].names.join('、'), members: rows[0].participants } : null);
         const background = selectBackground(settings, session.prefs, tab, exact);
         const asset = background.image?.startsWith('asset:') ? await ledger.readMeta(`background:${background.image.slice(6)}`) : null;
         if (sequence !== refreshNumber || !session.valid() || phone.view !== tab) return;
         const photoRecords = await photos.list(scope);
-        const sourceIds = new Set(rows.map(row => row.id));
+        const sourceIds = new Set([...rows, ...(characterRows || [])].map(row => row.id));
         const albumRows = await photos.resolve(photoRecords.filter(row => !row.sourceId || sourceIds.has(row.sourceId) || row.ownerId === PLAYER));
         const imageConfig = await images.publicConfig();
         if (sequence !== refreshNumber || !session.valid() || phone.view !== tab) return;
         const applicable = item => item?.scope === scope && trail.hashes[item.anchor.length] === item.anchor.key ? item : null;
-        current = { ...session, rows, threads, thread, view: tab, characterPhoneRows: characterRecords?.rows, next: page.next, pending: pending?.rows, lastRequest: applicable(lastRequest), prepared: applicable(prepared), models, settings, armed: sync.armed.has(scope), running, notice: resultMessage, cloudStatus: cloud.status, resourceTarget, resourceError, background: backgroundStyle(background, asset?.data), albumRows, photoSources: photoSources(rows).map(photo => { const saved = albumRows.find(row => row.id === photo.photoId || row.sourceId === photo.sourceId && row.index === photo.index && row.generated); return { ...photo, url: saved?.url || photo.url, prompt: photo.prompt || saved?.prompt || '' }; }), imageConfig, imageModels, imageGenerating: !!images.job || generation?.kind === 'images' };
+        current = { ...session, rows, threads, thread, view: tab, characterPhoneRows: characterRows, next: page.next, pending: pending?.rows, lastRequest: applicable(lastRequest), prepared: applicable(prepared), models, settings, armed: sync.armed.has(scope), running, notice: resultMessage, cloudStatus: cloud.status, resourceTarget, resourceError, background: backgroundStyle(background, asset?.data), albumRows, photoSources: photoSources([...new Map([...rows, ...(characterRows || [])].map(row => [row.id, row])).values()]).map(photo => { const saved = albumRows.find(row => row.id === photo.photoId || row.sourceId === photo.sourceId && row.index === photo.index && row.generated); return { ...photo, url: saved?.url || photo.url, prompt: photo.prompt || saved?.prompt || '' }; }), imageConfig, imageModels, imageGenerating: !!images.job || generation?.kind === 'images' };
         phone.appearance(settings);
         phone.render(current);
         if (thread && rows.length && (session.prefs.seen?.[thread.id] || 0) < rows[0].stamp) {
@@ -639,19 +644,31 @@ function start(frame) {
         const session = request ? await requestSession(request) : ['syncCharacterPhone', 'cancelCharacterPhoneSync'].includes(name) ? await loadSession() : current;
         if (!session?.valid()) throw new Error('请打开一个有效酒馆聊天，再从手机操作');
         const { scope, trail, thread } = session;
+        if (name === 'createCharacterGroup') {
+            if (data.scope !== scope) throw new Error('聊天已切换，请重新选择群成员。');
+            const members = characterGroupMembers(session.people, session.prefs, data.owner, data.members);
+            const group = { id: `group:${newId()}`, name: clip(data.name, 60) || '群聊', members };
+            await ledger.saveMeta(`${scope}:groups`, [...session.manualGroups, group]);
+            phone.characterPhone.openGroup(data.owner, group, false);
+            setNotice('角色群聊已创建，可选择群成员发消息。');
+            return refresh();
+        }
         if (['sendCharacterMessage', 'replyCharacterMessage', 'initiateCharacterMessage'].includes(name)) {
             if (data.scope && data.scope !== scope) throw new Error('聊天已切换，请重新打开角色会话。');
-            const target = characterConversation(session.people, session.prefs, data.owner, data.peer);
+            const target = data.group ? characterGroupConversation(session.people, session.prefs, session.groups, data.owner, data.group) : characterConversation(session.people, session.prefs, data.owner, data.peer);
+            const fallback = name === 'initiateCharacterMessage' || name === 'sendCharacterMessage' ? target.owner : target.peer || session.people.find(person => person.id !== PLAYER && person.id !== target.owner.id && target.thread.members.includes(person.id));
+            const actor = target.group && data.actor ? session.people.find(person => person.id === data.actor && person.id !== PLAYER && target.thread.members.includes(person.id)) : fallback;
+            if (!actor) throw new Error('请选择群内有效的发言角色，不能代替玩家发言。');
             if (name === 'sendCharacterMessage') {
                 const text = clip(data.text);
                 if (!text) throw new Error('请先输入要发送的消息。');
-                await insert(session, [{ kind: 'message', speakerId: target.owner.id, participants: target.thread.members, audience: target.thread.members, thread: target.thread.id, text }]);
+                await insert(session, [{ kind: 'message', speakerId: actor.id, participants: target.thread.members, audience: target.thread.members, thread: target.thread.id, text }]);
                 phone.characterPhone.draft = '';
-                setNotice(`已以${target.owner.name}发送给${target.peer.name}，仅两人知情。`);
+                setNotice(target.group ? `已以${actor.name}发送到${target.group.name}，仅群成员知情。` : `已以${target.owner.name}发送给${target.peer.name}，仅两人知情。`);
                 return refresh();
             }
-            return generate({ session, thread: target.thread, actor: name === 'initiateCharacterMessage' ? target.owner : target.peer,
-                mode: name === 'initiateCharacterMessage' ? 'initiative' : 'reply', hint: `这是${target.owner.name}与${target.peer.name}之间的角色私聊。玩家不在此会话中，不代替玩家发言，不把私聊内容默认告知玩家。` });
+            return generate({ session, thread: target.thread, actor,
+                mode: name === 'initiateCharacterMessage' ? 'initiative' : 'reply', hint: target.group ? `当前群聊：${target.group.name}。只以指定群成员发言，遵守群成员知情范围，不代替玩家发言。${target.thread.members.includes(PLAYER) ? '玩家也是此群成员。' : '玩家不在此群，不把群聊内容默认告知玩家。'}` : `这是${target.owner.name}与${target.peer.name}之间的角色私聊。玩家不在此会话中，不代替玩家发言，不把私聊内容默认告知玩家。` });
         }
         if (['syncCharacterPhone', 'cancelCharacterPhoneSync'].includes(name)) {
             if (data.scope !== scope || data.tail && data.tail !== trail.tail) throw new Error('聊天或正文已变化，请重新选择同步内容。');
@@ -672,7 +689,7 @@ function start(frame) {
         if (name === 'generateCharacterPhone') {
             if (generation || transport.job || images.job) throw new Error('请先等待或取消当前请求。');
             const actor = session.people.find(person => person.id === data.actor && person.id !== PLAYER);
-            const sections = phoneSections(data.sections || data.section || 'all');
+            const sections = phoneSections(data.sections || data.section || 'all'), plan = phoneGenerationPlan(data);
             if (!actor) throw new Error('请选择有效的角色与手机栏目。');
             const job = { kind: 'character-phone', cancelled: false, cancel() { this.cancelled = true; transport.cancel(); } };
             generation = job;
@@ -685,7 +702,7 @@ function start(frame) {
                     ? { peer: item.peer, messages: item.messages.slice(-2).map(message => ({ ...message, text: clip(message.text, 180) })) }
                     : Object.fromEntries(Object.entries(item).map(([field, value]) => [field, typeof value === 'string' ? clip(value, 180) : value]))) ]));
                 const pack = await buildContext({ host, helper, ...session, settings: { ...session.settings, rpTime: session.rpTime }, person: actor, members: [actor.id], memory: { recent: chats, states: [], older: [] }, snapshot: sync.snapshot, loreSnapshot: sync.loreSnapshot,
-                    action: 'characterPhone', hint: JSON.stringify({ 栏目: sections, 已有私人记录摘要: summaries, 用户要求: clip(data.hint, 1500) }) });
+                    action: 'characterPhone', hint: JSON.stringify({ 栏目: sections, 生成计划: plan, 已有私人记录摘要: summaries, 用户要求: clip(data.hint, 1500) }) });
                 if (!session.valid() || job.cancelled) throw new Error('聊天已变化或请求已取消。');
                 const connection = generationConnection(settings, credentials);
                 const raw = await transport.execute(connection.settings, session.context, pack.messages, { token: connection.token, onProgress: progress => { if (!disposed && generation === job && !job.cancelled && session.valid()) phone.activity(`正在接收角色手机内容 · ${progress.characters || 0} 字符`); } });
@@ -900,12 +917,15 @@ function start(frame) {
                 deletedContacts[data.id] = name === 'deleteContact' ? personName : '';
                 await savePrefs(session, { deletedContacts });
             } else {
-                const group = session.groups.find(group => group.id === data.id && group.members.includes(PLAYER));
+                const group = session.groups.find(group => group.id === data.id && group.members.includes(data.owner || PLAYER));
+                if (data.owner && !session.people.some(person => person.id === data.owner && person.id !== PLAYER)) throw new Error('角色手机已不可用。');
                 if (!group) throw new Error('该群聊不可删除或恢复。');
                 await savePrefs(session, { deletedThreads: { ...session.prefs.deletedThreads, [group.id]: name === 'deleteGroup' } });
             }
             dataRevision++; generation?.cancel(); transport.cancel();
-            phone.closeDialog(); phone.navigate(name.endsWith('Contact') ? 'contacts' : 'messages', null, false);
+            phone.closeDialog();
+            if (data.owner) { Object.assign(phone.characterPhone, { scope, owner: data.owner, app: 'messages', thread: '', draft: '', sender: '' }); phone.navigate('characterPhone', null, false); }
+            else phone.navigate(name.endsWith('Contact') ? 'contacts' : 'messages', null, false);
             queueCloud(); setNotice(name.startsWith('delete') ? '已从小手机移除，未交接会话停止同步；可在通讯录的「已删除」恢复。' : '已恢复会话与历史记录。');
             return refresh();
         }
@@ -929,7 +949,8 @@ function start(frame) {
             await ledger.saveMeta(`${scope}:groups`, [...session.manualGroups, { id, name: '群聊', members, createdNotice: `你邀请${names.join('、')}加入了群聊` }]);
             phone.navigate('chat', id, false);
         } else if (['renameGroup', 'addGroupMembers'].includes(name)) {
-            const group = session.groups.find(item => item.id === data.id && item.members.includes(PLAYER));
+            const group = session.groups.find(item => item.id === data.id && item.members.includes(data.owner || PLAYER));
+            if (data.owner && !session.people.some(person => person.id === data.owner && person.id !== PLAYER)) throw new Error('角色手机已不可用。');
             if (!group) throw new Error('群聊不存在或已变化');
             let updated;
             if (name === 'renameGroup') {

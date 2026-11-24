@@ -11,14 +11,8 @@ const { MusicIsland } = require('./music-island.cjs');
 const { MusicApp } = require('./music-app.cjs');
 const { CharacterPhone } = require('./character-phone.cjs');
 const { wallpaperSource } = require('./wallpapers.cjs');
+const { chatTimeline } = require('./chat-time.cjs');
 const { contactDeleted } = require('./conversations.cjs');
-
-function chatTime(value) {
-    const raw = String(value || '').trim();
-    const date = raw.match(/(?:(\d{4})\s*(?:年|[-/.])\s*)?(\d{1,2})\s*(?:月|[-/.])\s*(\d{1,2})\s*日?/);
-    const clock = (date || /^\d{1,2}[:：]\d{2}(?::\d{2})?$/.test(raw)) && raw.match(/\b([01]?\d|2[0-3])[:：]([0-5]\d)(?::[0-5]\d)?\b/);
-    return { raw, date: date ? { year: date[1] || '', month: Number(date[2]), day: Number(date[3]) } : null, clock: clock ? `${clock[1].padStart(2, '0')}:${clock[2]}` : '' };
-}
 
 const ICONS = {
     characterPhone: '<rect x="6" y="2" width="12" height="20" rx="3"/><circle cx="12" cy="9" r="2"/><path d="M8 16a4 4 0 0 1 8 0m-6 3h4"/>',
@@ -510,7 +504,11 @@ class Phone {
             const scroll = this.content.querySelector('.bubbles') || this.content;
             scroll.scrollTop = this.rememberScroll && sameView ? prevTop + scroll.scrollHeight - prevHeight : scroll.scrollHeight;
             this.rememberScroll = false;
-        } else if (this.view === 'characterPhone' && this.characterPhone.thread) this.content.scrollTop = this.content.scrollHeight;
+        } else if (this.view === 'characterPhone' && this.characterPhone.thread) {
+            const scroll = this.content.querySelector('.character-phone-bubbles');
+            if (scroll) scroll.scrollTop = scroll.scrollHeight;
+            this.content.scrollTop = 0;
+        }
         else this.content.scrollTop = sameView ? prevTop : 0;
         if (['x', 'douyin'].includes(this.view) && sameView) { const timeline = this.content.querySelector('.x-timeline, .douyin-reels'); if (timeline) timeline.scrollTop = prevXTop; }
         if (sameView && oldInput) {
@@ -943,8 +941,7 @@ class Phone {
         const messages = this.el('div', 'bubbles');
         if (state.next) messages.append(this.button('载入更早的消息', () => { this.rememberScroll = true; this.action('more'); }, 'link load'));
         const ordered = [...state.rows].reverse();
-        const currentDate = chatTime(this.rpTime).date;
-        let lastDate = null, lastTimestamp = '';
+        const timeline = chatTimeline(ordered, state.rpTime, state.chat);
         for (const [index, row] of ordered.entries()) {
             const own = row.speakerId === PLAYER;
             const bubble = this.button('', () => { if (Date.now() < (bubble.suppressClickUntil || 0)) return; this.openMessage(state, row); }, `bubble ${own ? 'own' : ''} ${ordered[index + 1]?.speakerId === row.speakerId ? 'continues' : ''}`);
@@ -959,22 +956,10 @@ class Phone {
             else for (const [index, part] of payload.components.entries()) bubble.append(this.messageComponent(part, { sourceId: row.id, index, ownerId: row.speakerId }));
             if (hasComponent === 1 && payload.components[0].type === 'photo' && !payload.caption) bubble.classList.add(bubble.querySelector('.im-photo') ? 'wechat-photo-bubble' : 'wechat-photo-description-bubble');
             bubble.setAttribute('aria-label', `${row.speaker}：${row.text}`);
-            const stamp = chatTime(row.rpTime);
-            const reference = lastDate || currentDate;
-            const sameDay = stamp.date && reference && stamp.date.month === reference.month && stamp.date.day === reference.day && (!stamp.date.year || !reference.year || stamp.date.year === reference.year);
-            const date = stamp.date || lastDate || currentDate;
-            const key = stamp.clock ? `${date?.year || reference?.year || ''}/${date?.month || ''}/${date?.day || ''} ${stamp.clock}` : stamp.raw;
-            const showDate = stamp.date && (!sameDay || !stamp.clock);
-            const dayLabel = showDate ? `${stamp.date.year && reference?.year && stamp.date.year !== reference.year ? `${stamp.date.year}年` : ''}${stamp.date.month}月${stamp.date.day}日` : '';
-            const timeLabel = [dayLabel, stamp.clock].filter(Boolean).join(' ') || stamp.raw;
-            if (stamp.raw && key !== lastTimestamp) {
-                const time = this.el('small', 'im-timestamp', timeLabel);
-                time.title = stamp.raw;
-                time.setAttribute('aria-label', stamp.raw);
-                messages.append(time);
+            if (timeline[index].text) {
+                const time = this.el('small', 'im-timestamp', timeline[index].text);
+                time.title = timeline[index].raw; messages.append(time);
             }
-            if (stamp.raw) lastTimestamp = key;
-            if (stamp.date) lastDate = stamp.date;
             const content = this.el('div', 'bubble-content', !own && thread.members.length > 2 ? this.el('small', '', row.speaker) : null, bubble);
             const line = this.el('div', `bubble-row ${own ? 'own' : ''}`, this.avatar(state.people.find(person => person.id === row.speakerId) || { name: row.speaker }), content);
             messages.append(line);
@@ -1338,11 +1323,11 @@ class Phone {
             const url = photoSource(generated?.url || this.state?.albumRows?.find(row => row.id === fields.photoId)?.url || fields.src || fields.url);
             if (url) {
                 const image = this.el('img', 'im-photo'); image.src = url; image.alt = description || '图片'; image.loading = 'lazy';
-                if (!photoContext.readOnly) image.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, url, description, prompt: fields.prompt, title: '聊天图片' }); };
+                image.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, url, description, prompt: fields.prompt, title: '聊天图片' }); };
                 return image;
             }
             const copy = this.el('span', 'im-photo-description', this.el('span', 'im-photo-description-heading', this.icon('photo')), this.el('span', 'im-photo-description-copy', description || '暂无画面说明'));
-            if (!photoContext.readOnly) copy.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, description, prompt: fields.prompt, title: '图片说明' }); };
+            copy.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, description, prompt: fields.prompt, title: '图片说明' }); };
             return copy;
         }
         const names = { trans: '翻译', reply: '回复', photo: '图片', video: '视频画面', voice: '语音', loc: '位置', red: '红包', pay: '转账', call: '通话', file: '文件', link: '链接', sys: '系统提示', 's-image': '图片说明', 's-video': '视频画面' };
@@ -1561,7 +1546,7 @@ class Phone {
         const contacts = Object.entries(state.prefs.deletedContacts || {}).filter(([, name]) => name).map(([id, name]) => ({ id, name, kind: 'Contact' }));
         const groups = state.groups.filter(group => state.prefs.deletedThreads?.[group.id]).map(group => ({ ...group, kind: 'Group' }));
         this.dialog('已删除的联系人与群聊', this.el('div', 'form', this.small('恢复后显示原有记录；不会重新发送已交接的消息。'),
-            ...[...contacts, ...groups].map(item => this.el('div', 'deleted-conversation-row', this.el('span', '', item.name), this.button('恢复', async () => { await this.action(`restore${item.kind}`, { id: item.id }); }, 'outline'))),
+            ...[...contacts, ...groups].map(item => this.el('div', 'deleted-conversation-row', this.el('span', '', item.name), this.button('恢复', async () => { await this.action(`restore${item.kind}`, { id: item.id, ...(item.kind === 'Group' && !item.members.includes(PLAYER) ? { owner: item.members.find(id => state.people.some(person => person.id === id)) } : {}) }); }, 'outline'))),
             !contacts.length && !groups.length ? this.small('暂无已删除的联系人或群聊。') : null));
     }
 
@@ -2149,12 +2134,12 @@ class Phone {
             content.src = url; content.alt = photo.description || photo.title || '图片';
             // Preserve native image context menus and the mobile long-press save action.
             content.draggable = true;
-            content.addEventListener('dblclick', () => { if (content.isConnected) this.imageEditor(photo); });
+            content.addEventListener('dblclick', () => { if (!photo.readOnly && content.isConnected) this.imageEditor(photo); });
         }
-        if (!url) content.addEventListener('dblclick', () => { if (content.isConnected) this.imageEditor(photo); });
+        if (!url) content.addEventListener('dblclick', () => { if (!photo.readOnly && content.isConnected) this.imageEditor(photo); });
         let lastTouch = 0;
         content.addEventListener('pointerup', event => {
-            if (event.pointerType !== 'touch') return;
+            if (event.pointerType !== 'touch' || photo.readOnly) return;
             const now = Date.now();
             if (lastTouch && now - lastTouch < 380 && content.isConnected) { lastTouch = 0; this.imageEditor(photo); } else lastTouch = now;
         });
@@ -2162,16 +2147,16 @@ class Phone {
             gallery.length > 1 ? this.el('div', 'generated-gallery-nav', ...gallery.map((item, index) => this.button(`第 ${index + 1} 张`, () => this.photoViewer(item, gallery), (item.id === photo.id || item.sourceId === photo.sourceId && item.index === photo.index) ? 'outline active' : 'link'))) : null,
             content, url && photo.description ? this.el('p', 'photo-description', photo.description) : null,
             photo.generated ? this.small('AI 生成图片') : null, photo.warning ? this.small(photo.warning) : null,
-            url ? this.small('手机可长按图片保存；双击图片打开生图面板。') : null,
-            url ? this.button('保存到我的相册', () => this.action('savePhoto', { ...photo, ownerId: PLAYER, inAlbum: true }), 'outline') : null,
-            isEnglishPrompt(photo.prompt) ? this.el('details', 'photo-prompt-preview', this.el('summary', '', '英文生图提示词'), this.el('p', 'photo-description', photo.prompt)) : this.button('AI 生成提示词', async event => {
+            url ? this.small(photo.readOnly ? '手机可长按图片保存。' : '手机可长按图片保存；双击图片打开生图面板。') : null,
+            url && !photo.readOnly ? this.button('保存到我的相册', () => this.action('savePhoto', { ...photo, ownerId: PLAYER, inAlbum: true }), 'outline') : null,
+            photo.readOnly ? null : isEnglishPrompt(photo.prompt) ? this.el('details', 'photo-prompt-preview', this.el('summary', '', '英文生图提示词'), this.el('p', 'photo-description', photo.prompt)) : this.button('AI 生成提示词', async event => {
                 const button = event.currentTarget; button.disabled = true;
                 const result = await this.action('draftImagePrompt', photo);
                 if (result && button.isConnected) this.photoViewer({ ...photo, ...result }, gallery);
                 else button.disabled = false;
             }, 'outline'),
-            photo.description ? this.button(url ? '重新生成图片' : '编辑提示词与生图', () => this.imageEditor(photo), 'outline') : null,
-            stored ? this.button('删除图片', async () => {
+            photo.description && !photo.readOnly ? this.button(url ? '重新生成图片' : '编辑提示词与生图', () => this.imageEditor(photo), 'outline') : null,
+            stored && !photo.readOnly ? this.button('删除图片', async () => {
                 if (await this.action('deletePhoto', { id: stored.id })) { if (layer) layer.remove(); else this.closeDialog(); }
             }, 'outline danger') : null);
         if (this.pop?.querySelector('.note-detail, .social-detail')) layer = this.noteSheet(photo.title || '图片', body);

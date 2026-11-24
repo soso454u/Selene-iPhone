@@ -160,3 +160,25 @@ test('group NPC messages hand off with group identity; deletions block new hando
     const merged = mergeBackupData({ events: [], prefs, people: [], threads: [] }, { prefs: { deletedContacts: {}, deletedThreads: {} } });
     assert.equal(merged.prefs.deletedThreads[groupMessage.thread], true);
 });
+
+test('role groups validate NPC membership, persist empty groups and retain private audience through handoff', async () => {
+    const {characterGroupMembers,characterGroupConversation}=require('../src/conversations.cjs');
+    const known=[...people,{id:'screen:another',name:'小周'}], owner=known[1].id;
+    const members=characterGroupMembers(known,{},owner,[known[2].id,known[3].id,owner]);
+    assert.equal(members.length,3); assert.ok(!members.includes(PLAYER));
+    for(const selected of [[known[2].id],[PLAYER,known[2].id],[known[2].id,'missing']]) assert.throws(()=>characterGroupMembers(known,{},owner,selected),/至少两位/);
+    const group={id:'group:role',name:'朋友群',members};
+    const target=characterGroupConversation(known,{},[group],owner,group.id);
+    assert.equal(target.thread.viewer,owner);
+    assert.throws(()=>characterGroupConversation(known,{deletedThreads:{[group.id]:true}},[group],owner,group.id),/不可用/);
+    assert.equal(conversationGroups([group],[],lineage([]))[0].id,group.id);
+    const trail=lineage([reply('剧情')]);
+    const event=makeEvent('scope',trail,{speakerId:known[2].id,participants:members,audience:members,thread:group.id,text:'群内消息',payload:{group:{name:group.name}}},known);
+    const handoff=JSON.parse(serializeHandoff([event],10000).block.split('\n')[1]).events[0];
+    assert.equal(handoff.群聊.名称,group.name); assert.deepEqual(new Set(handoff.知情范围),new Set(known.slice(1).map(p=>p.name)));
+    assert.equal(conversationThreads({people:known,prefs:{},groups:[group],context:{name1:known[0].name}},[event],settings).some(t=>t.id===group.id),false);
+    const restored=new Ledger({}).cleanEvents(JSON.parse(JSON.stringify([event])),'scope');
+    assert.equal(restored[0].thread,group.id);
+    const ledger=fixture(restored), memory=await conversationMemory(ledger,'scope',trail,group.id,owner,members,()=>true,false,owner);
+    assert.deepEqual(memory.recent.map(r=>r.text),['群内消息']);
+});

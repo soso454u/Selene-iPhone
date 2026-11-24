@@ -1,4 +1,4 @@
-const { PLAYER, active, threadKey, socialNickname } = require('./domain.cjs');
+const { PLAYER, active, threadKey, socialNickname, unique } = require('./domain.cjs');
 
 const contactDeleted = (person, prefs = {}) => !!prefs.deletedContacts?.[person.id] || Object.values(prefs.deletedContacts || {}).includes(person.name);
 function conversationDeleted(row, prefs = {}) {
@@ -49,4 +49,17 @@ function characterConversation(people, prefs, ownerId, peerId) {
     return { owner, peer, thread: { id: threadKey([owner.id, peer.id]), members: [owner.id, peer.id], viewer: owner.id, name: peer.name } };
 }
 
-module.exports = { contactDeleted, conversationDeleted, conversationGroups, privateThreadDeleted, conversationThreads, characterConversation };
+function characterGroupMembers(people, prefs, ownerId, selected) {
+    const members = unique([ownerId, ...(Array.isArray(selected) ? selected : [])]);
+    if (!ownerId || !members.includes(ownerId) || members.length < 3 || members.length > 25 || members.includes(PLAYER) || members.some(id => !people.some(person => person.id === id && !contactDeleted(person, prefs)))) throw new Error('请选择手机主人和至少两位不同的 NPC，最多 25 位成员。');
+    return members;
+}
+
+function characterGroupConversation(people, prefs, groups, ownerId, groupId) {
+    const owner = people.find(person => person.id === ownerId && person.id !== PLAYER && !contactDeleted(person, prefs));
+    const group = groups.find(group => group.id === groupId && group.members.length >= 3 && group.members.includes(ownerId));
+    if (!owner || !group || prefs.deletedThreads?.[groupId] || group.members.some(id => !people.some(person => person.id === id))) throw new Error('该角色不在此群聊中，或群聊、成员已不可用。');
+    return { owner, group, thread: { ...group, members: [...group.members], viewer: owner.id } };
+}
+
+module.exports = { contactDeleted, conversationDeleted, conversationGroups, privateThreadDeleted, conversationThreads, characterConversation, characterGroupMembers, characterGroupConversation };
