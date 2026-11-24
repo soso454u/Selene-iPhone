@@ -1312,7 +1312,7 @@ class Phone {
                 if (!photoContext.readOnly) image.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, url, description, prompt: fields.prompt, title: '聊天图片' }); };
                 return image;
             }
-            const copy = this.el('span', 'im-photo-description', this.el('span', 'im-photo-description-heading', this.icon('photo'), this.el('strong', '', '图片说明')), this.el('span', 'im-photo-description-copy', description || '暂无画面说明'));
+            const copy = this.el('span', 'im-photo-description', this.el('span', 'im-photo-description-heading', this.icon('photo')), this.el('span', 'im-photo-description-copy', description || '暂无画面说明'));
             if (!photoContext.readOnly) copy.onclick = event => { event.stopPropagation(); this.photoViewer({ ...photoContext, description, prompt: fields.prompt, title: '图片说明' }); };
             return copy;
         }

@@ -532,7 +532,6 @@ pre { overflow-wrap: anywhere; white-space: pre-wrap; max-height: 215px; overflo
 .im-photo-description { display: flex; flex-direction: column; gap: 16px; width: 240px; max-width: 100%; min-width: 0; min-height: 240px; padding: 17px 18px; border: 1px solid #ffffff40; border-radius: 12px; background: radial-gradient(ellipse at 5% 0%, #ffffff38, transparent 65%), linear-gradient(145deg, color-mix(in srgb, var(--card) 75%, #bdc7b9), color-mix(in srgb, var(--card) 68%, #a3b7b6)); color: var(--ink); text-align: left; }
 .im-photo-description-heading { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .im-photo-description-heading > svg { width: 14px; height: 14px; flex: none; stroke-width: 1.5; }
-.im-photo-description-heading > strong { font-size: 11px; font-weight: 550; letter-spacing: .5px; }
 .im-photo-description-copy { flex: 1; align-content: center; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; font-weight: 400; line-height: 1.85; letter-spacing: .1px; }
 .contact-manage-row { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .contact-manage-row > .list-row { flex: 1; min-width: 0; border-bottom: 0; }
