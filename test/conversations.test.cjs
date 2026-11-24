@@ -5,9 +5,10 @@ const { DEFAULTS } = require('../src/context.cjs');
 const { Ledger } = require('../src/storage.cjs');
 const { mergeEvents } = require('../src/cloud.cjs');
 const { reconcileStories, pendingSyncEvents } = require('../src/sync.cjs');
-const { contactDeleted, conversationDeleted, conversationGroups } = require('../src/conversations.cjs');
+const { contactDeleted, conversationDeleted, conversationGroups, conversationThreads, characterConversation } = require('../src/conversations.cjs');
 const { mergeBackupData, PREF_KEYS } = require('../src/portable.cjs');
 const { Photos, photoSources } = require('../src/photos.cjs');
+const { conversationMemory } = require('../src/storage.cjs');
 
 const people = [{ id: PLAYER, name: '小林' }, { id: 'card:actor', name: '小顾', current: true }, { id: 'screen:friend', name: '小宋' }];
 const settings = { ...DEFAULTS, lore: false, dynamic: false };
@@ -21,6 +22,43 @@ function fixture(rows = []) {
         write: async (items, changes = [], insertOnly = false) => { for (const row of items) if (!insertOnly || !records.has(row.id)) records.set(row.id, row); for (const row of changes) meta.set(row.key, row.value); },
     };
 }
+
+test('known contacts and manually created groups open before any messages exist, without exposing NPC private chats', () => {
+    const known = [...people, { id: 'screen:new', name: '新联系人', source: '正文手机' }];
+    const group = { id: 'group:empty', name: '新群', members: known.slice(0, 3).map(person => person.id) };
+    const session = { people: known, groups: [group], prefs: {}, context: { name1: people[0].name } };
+    const original = JSON.stringify(session);
+    const threads = conversationThreads(session, [], settings);
+    assert.ok(threads.find(thread => thread.members.includes('screen:new')));
+    assert.ok(threads.find(thread => thread.id === group.id));
+    const target = characterConversation(known, {}, people[1].id, people[2].id);
+    const secret = makeEvent('scope', lineage([reply('前情')]), { speakerId: target.owner.id, participants: target.thread.members, audience: target.thread.members, thread: target.thread.id, text: 'NPC_PRIVATE_ONLY' }, known);
+    const mine = conversationThreads(session, [secret], settings);
+    assert.ok(!mine.some(thread => thread.id === secret.thread || thread.latest?.text === secret.text));
+    assert.equal(JSON.stringify(session), original);
+    session.prefs = { deletedContacts: { 'screen:new': '新联系人' }, deletedThreads: { [group.id]: true } };
+    assert.ok(!conversationThreads(session, [], settings).some(thread => thread.id === group.id || thread.members.includes('screen:new')));
+});
+
+test('character conversations use the actual sender, two-person audience and private memory, excluding the player', async () => {
+    const target = characterConversation(people, {}, people[1].id, people[2].id);
+    assert.equal(target.thread.viewer, target.owner.id);
+    assert.ok(!target.thread.members.includes(PLAYER));
+    for (const ids of [[PLAYER, people[1].id], [people[1].id, PLAYER], [people[1].id, people[1].id], ['missing', people[1].id]]) assert.throws(() => characterConversation(people, {}, ...ids), /不同的有效角色/);
+    assert.throws(() => characterConversation(people, { deletedContacts: { [people[2].id]: people[2].name } }, people[1].id, people[2].id), /不同的有效角色/);
+    const chat = [reply('前情')], trail = lineage(chat);
+    const privateMessage = makeEvent('scope', trail, { speakerId: target.owner.id, participants: target.thread.members, audience: target.thread.members, thread: target.thread.id, text: 'NPC_PRIVATE_ONLY' }, people);
+    const playerMessage = makeEvent('scope', trail, { speakerId: PLAYER, participants: [PLAYER, target.owner.id], text: 'PLAYER_PRIVATE_ONLY' }, people);
+    const ledger = fixture([privateMessage, playerMessage]);
+    const privateMemory = await conversationMemory(ledger, 'scope', trail, target.thread.id, target.peer.id, target.thread.members, () => true, false, target.owner.id);
+    assert.deepEqual(privateMemory.recent.map(row => row.text), ['NPC_PRIVATE_ONLY']);
+    const playerMemory = await conversationMemory(ledger, 'scope', trail, target.thread.id, target.owner.id, [PLAYER, target.owner.id], () => true);
+    assert.equal(playerMemory.recent.length, 0);
+    const handoff = JSON.parse(serializeHandoff([privateMessage], 10000).block.split('\n')[1]).events[0];
+    assert.equal(handoff.发送者, target.owner.name);
+    assert.deepEqual(new Set(handoff.知情范围), new Set([target.owner.name, target.peer.name]));
+    assert.ok(!handoff.知情范围.includes(people[0].name));
+});
 
 test('cloud merges serialization defaults and derived status without making new bubbles, retaining true edits', () => {
     const event = makeEvent('scope', lineage([reply('前情')]), { speakerId: PLAYER, participants: [PLAYER, people[1].id], text: '一起吃饭吧' }, people, { id: 'one' });

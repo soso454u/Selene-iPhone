@@ -223,8 +223,8 @@ class Ledger {
     }
 }
 
-async function conversationMemory(ledger, scope, trail, thread, speaker, audience, accepts, recall = false) {
-    const acceptsVisible = row => (thread === 'x' || !xSideStory(row)) && active(row, trail) && accepts(row) && row.audience.includes(speaker) && row.audience.includes(PLAYER) && audience.every(id => row.audience.includes(id));
+async function conversationMemory(ledger, scope, trail, thread, speaker, audience, accepts, recall = false, viewer = PLAYER) {
+    const acceptsVisible = row => (thread === 'x' || !xSideStory(row)) && active(row, trail) && accepts(row) && row.audience.includes(speaker) && row.audience.includes(viewer) && audience.every(id => row.audience.includes(id));
     const recent = await ledger.query(scope, { thread, limit: 24, accept: acceptsVisible });
     const IDs = new Set(recent.rows.map(row => row.id));
     const states = await ledger.query(scope, { limit: 12, accept: row => !IDs.has(row.id) && row.thread !== thread && acceptsVisible(row) && !!row.memory });

@@ -18,7 +18,7 @@ const { profileValues, saveProfile, cleanCredentials, generationConnection } = r
 const { PAGES, cleanBackground, selectBackground, backgroundStyle } = require('./backgrounds.cjs');
 const { Wallpapers, wallpaperImage } = require('./wallpapers.cjs');
 const { resolveRpTime } = require('./story-time.cjs');
-const { contactDeleted, conversationDeleted, conversationGroups, privateThreadDeleted } = require('./conversations.cjs');
+const { contactDeleted, conversationDeleted, conversationGroups, conversationThreads, characterConversation } = require('./conversations.cjs');
 
 const KEY = 'tavern-pocket:v1';
 
@@ -206,21 +206,7 @@ function start(frame) {
         return { ...state, cardScoped, cardBound: !st.groupId && !!boundStyle(card), cardAvatar: !st.groupId ? card?.avatar : undefined, cardName: card?.name || '', trail, people, groups: knownGroups, manualGroups: groups || [], prefs: cardScoped ? { ...prefs, chatBackgrounds: {} } : prefs || {}, manual: manual || [], parser, valid, scanFailed: scan?.failed };
     }
 
-    function resolveThreads(session, rows) {
-        const { people, groups, prefs } = session;
-        const contacts = people.filter(person => person.id !== PLAYER && !contactDeleted(person, prefs) && (person.source !== '正文手机' || rows.some(row => ['message', 'call'].includes(row.kind) && row.participants.length === 2 && row.participants.includes(person.id) && row.participants.includes(PLAYER)))).map(person => ({ id: threadKey([PLAYER, person.id]), members: [PLAYER, person.id], name: socialNickname(person, settings), avatar: person.avatar, source: person.source || '手动联系人' }));
-        const threads = new Map([...contacts, ...groups].filter(thread => !prefs.deletedThreads?.[thread.id] && !privateThreadDeleted(thread.members, people, prefs) && thread.members.includes(PLAYER)).map(thread => [thread.id, { ...thread }]));
-        for (const row of rows) {
-            if (row.kind !== 'message' && row.kind !== 'call') continue;
-            if (conversationDeleted(row, prefs) || privateThreadDeleted(row.participants, people, prefs)) continue;
-            if (!threads.has(row.thread)) threads.set(row.thread, { id: row.thread, name: row.names.filter(name => name !== session.context.name1).join('、') || row.speaker, members: row.participants, source: '正文同步' });
-            const thread = threads.get(row.thread);
-            thread.muted = prefs.muted?.includes(thread.id) === true;
-            thread.latest ??= row;
-            thread.unread = (thread.unread || 0) + Number(!thread.muted && row.speakerId !== PLAYER && !(prefs.seen?.[thread.id] >= row.stamp));
-        }
-        return [...threads.values()].sort((left, right) => Number(!!prefs.pins?.includes(right.id)) - Number(!!prefs.pins?.includes(left.id)) || (right.latest?.stamp || 0) - (left.latest?.stamp || 0));
-    }
+    const resolveThreads = (session, rows) => conversationThreads(session, rows, settings);
 
     async function refresh({ older = false, rescan = false } = {}) {
         const sequence = ++refreshNumber;
@@ -363,7 +349,7 @@ function start(frame) {
 
     async function compose(session, thread, actor, mode, hint, recall, replace, postCount = 1, targetPost) {
         if (!actor || !thread.members.includes(actor.id) || (actor.id === PLAYER && !['post', 'comments'].includes(mode))) throw new Error('请先选择一位会话内的发言人');
-        const memory = await conversationMemory(ledger, session.scope, session.trail, thread.id, actor.id, thread.members, row => accepts(session, row) && (!replace || (row.id !== replace.id && (!replace.bubbleGroup || row.bubbleGroup !== replace.bubbleGroup))), recall);
+        const memory = await conversationMemory(ledger, session.scope, session.trail, thread.id, actor.id, thread.members, row => accepts(session, row) && (!replace || (row.id !== replace.id && (!replace.bubbleGroup || row.bubbleGroup !== replace.bubbleGroup))), recall, thread.viewer || PLAYER);
         return buildContext({ host, helper, ...session, settings: { ...session.settings, rpTime: session.rpTime }, person: actor, members: thread.members, memory, snapshot: sync.snapshot, loreSnapshot: sync.loreSnapshot, action: mode, platform: PLATFORMS[thread.id], hint, postCount, targetPost, imageRules: mode === 'post' ? (await images.load()).imageRules : undefined });
     }
 
@@ -465,7 +451,7 @@ function start(frame) {
         await requests.enqueue(() => generate({ session, actor, thread, mode: settings.auto === 'post' ? 'post' : 'initiative', hint: '仅判断是否确有必要另发一条新内容；不重发正文已有的消息。' }), { valid: session.valid });
     }
 
-    const queuedActions = new Set(['reply', 'initiative', 'preview', 'postActor', 'generateComments', 'generateCharacterPhone', 'draftImagePrompt', 'generateAttachmentImage', 'generateImage', 'retry', 'models', 'test', 'imageModels']);
+    const queuedActions = new Set(['reply', 'initiative', 'preview', 'postActor', 'generateComments', 'generateCharacterPhone', 'replyCharacterMessage', 'initiateCharacterMessage', 'draftImagePrompt', 'generateAttachmentImage', 'generateImage', 'retry', 'models', 'test', 'imageModels']);
     function action(name, data = {}) {
         if (!queuedActions.has(name)) return performAction(name, data);
         const state = getState();
@@ -653,6 +639,20 @@ function start(frame) {
         const session = request ? await requestSession(request) : ['syncCharacterPhone', 'cancelCharacterPhoneSync'].includes(name) ? await loadSession() : current;
         if (!session?.valid()) throw new Error('请打开一个有效酒馆聊天，再从手机操作');
         const { scope, trail, thread } = session;
+        if (['sendCharacterMessage', 'replyCharacterMessage', 'initiateCharacterMessage'].includes(name)) {
+            if (data.scope && data.scope !== scope) throw new Error('聊天已切换，请重新打开角色会话。');
+            const target = characterConversation(session.people, session.prefs, data.owner, data.peer);
+            if (name === 'sendCharacterMessage') {
+                const text = clip(data.text);
+                if (!text) throw new Error('请先输入要发送的消息。');
+                await insert(session, [{ kind: 'message', speakerId: target.owner.id, participants: target.thread.members, audience: target.thread.members, thread: target.thread.id, text }]);
+                phone.characterPhone.draft = '';
+                setNotice(`已以${target.owner.name}发送给${target.peer.name}，仅两人知情。`);
+                return refresh();
+            }
+            return generate({ session, thread: target.thread, actor: name === 'initiateCharacterMessage' ? target.owner : target.peer,
+                mode: name === 'initiateCharacterMessage' ? 'initiative' : 'reply', hint: `这是${target.owner.name}与${target.peer.name}之间的角色私聊。玩家不在此会话中，不代替玩家发言，不把私聊内容默认告知玩家。` });
+        }
         if (['syncCharacterPhone', 'cancelCharacterPhoneSync'].includes(name)) {
             if (data.scope !== scope || data.tail && data.tail !== trail.tail) throw new Error('聊天或正文已变化，请重新选择同步内容。');
             const actor = session.people.find(person => person.id === data.actor && person.id !== PLAYER);

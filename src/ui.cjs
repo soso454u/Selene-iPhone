@@ -510,7 +510,8 @@ class Phone {
             const scroll = this.content.querySelector('.bubbles') || this.content;
             scroll.scrollTop = this.rememberScroll && sameView ? prevTop + scroll.scrollHeight - prevHeight : scroll.scrollHeight;
             this.rememberScroll = false;
-        } else this.content.scrollTop = sameView ? prevTop : 0;
+        } else if (this.view === 'characterPhone' && this.characterPhone.thread) this.content.scrollTop = this.content.scrollHeight;
+        else this.content.scrollTop = sameView ? prevTop : 0;
         if (['x', 'douyin'].includes(this.view) && sameView) { const timeline = this.content.querySelector('.x-timeline, .douyin-reels'); if (timeline) timeline.scrollTop = prevXTop; }
         if (sameView && oldInput) {
             const input = [...this.content.querySelectorAll('[data-keep]')].find(item => item.dataset.keep === oldInput.key);
@@ -824,7 +825,35 @@ class Phone {
             list.append(button);
         }
         if (!threads.length) list.append(this.el('p', 'empty', this.search ? '没有匹配的会话。' : '暂无联系人。'));
-        return this.el('div', 'screen', this.heading('消息', 'INBOX', this.iconButton('add', '创建群聊', () => this.groupEditor(state))), this.el('label', 'search-box', this.icon('search'), search), list);
+        return this.el('div', 'screen', this.heading('消息', 'INBOX', this.iconButton('add', '添加联系人或发起聊天', () => this.inboxMenu(state))), this.el('label', 'search-box', this.icon('search'), search), list);
+    }
+
+    inboxMenu(state) {
+        this.dialog('发起聊天', this.el('div', 'form',
+            this.button('添加联系人', () => this.contactEditor(), 'outline'),
+            this.button('发起群聊', () => this.groupEditor(state), 'outline'),
+            this.button('角色与 NPC 聊天', () => this.characterPhone.chatPicker(state), 'outline')));
+    }
+
+    contactEditor(owner = '', initial = {}) {
+        const scope = this.state?.scope;
+        const name = this.input('text', initial.name || '', '姓名'); name.maxLength = 60; name.setAttribute('aria-label', '联系人姓名');
+        const notes = this.el('textarea'); notes.placeholder = '设定或备注（可选）'; notes.rows = 4; notes.maxLength = 2000; notes.setAttribute('aria-label', '联系人设定或备注');
+        const submit = this.button('添加联系人', async () => {
+            if (submit.disabled || this.state?.scope !== scope) return;
+            submit.disabled = true;
+            const contact = name.value.trim();
+            if (await this.action('addContact', { name: contact, notes: notes.value })) {
+                this.closeDialog();
+                if (owner && this.state?.scope === scope) {
+                    const peer = this.state.people.find(person => person.name === contact);
+                    if (peer) this.characterPhone.openChat(owner, peer.id);
+                }
+            } else submit.disabled = !name.value.trim();
+        }, 'primary');
+        submit.disabled = !name.value.trim(); name.oninput = () => { submit.disabled = !name.value.trim(); };
+        this.dialog('新增联系人', this.el('div', 'form', name, notes, submit));
+        name.focus();
     }
 
     groupEditor(state, selected = [], group = null) {
@@ -903,7 +932,7 @@ class Phone {
 
     chatView(state) {
         const thread = state.thread;
-        if (!thread) return this.el('p', 'empty', '此会话在当前分支不可用。');
+        if (!thread) return this.el('div', 'empty', this.el('p', '', '此会话在当前分支不可用。'), this.button('返回消息', () => this.navigate('messages'), 'outline'), this.button('添加联系人', () => this.contactEditor(), 'outline'));
         const actors = state.people.filter(person => thread.members.includes(person.id) && person.id !== PLAYER);
         const speaker = this.select([['', '依次选人 / @点名'], ...actors.map(person => [person.id, person.name])], this.actors.get(thread.id) || '');
         speaker.setAttribute('aria-label', '选择回复人物'); speaker.onchange = () => this.actors.set(thread.id, speaker.value);
@@ -1516,11 +1545,7 @@ class Phone {
             row.append(this.avatar(person), this.el('span', 'list-info', this.el('strong', '', person.name), this.el('small', '', person.source || '手动联系人')), this.icon('right'));
             list.append(this.el('div', 'contact-manage-row', row, this.iconButton('trash', `删除${person.name}`, () => this.removeConversation(state, person, false))));
         }
-        return this.el('div', 'screen', this.heading('通讯录', 'PEOPLE', this.iconButton('add', '新增联系人', () => {
-            const name = this.input('text', '', '姓名');
-            const notes = this.el('textarea'); notes.placeholder = '设定或备注（可选）'; notes.rows = 4;
-            this.dialog('新增联系人', this.el('div', 'form', name, notes), () => this.action('addContact', { name: name.value, notes: notes.value }));
-        })), this.el('div', 'actions', this.button('重新扫描', () => this.action('scan'), 'outline'), this.button('已删除', () => this.deletedConversations(this.state), 'outline')), state.scanFailed ? this.small('世界书扫描不可用，目前仅列出角色卡与手动联系人。') : null, list);
+        return this.el('div', 'screen', this.heading('通讯录', 'PEOPLE', this.iconButton('add', '新增联系人', () => this.contactEditor())), this.el('div', 'actions', this.button('重新扫描', () => this.action('scan'), 'outline'), this.button('已删除', () => this.deletedConversations(this.state), 'outline')), state.scanFailed ? this.small('世界书扫描不可用，目前仅列出角色卡与手动联系人。') : null, list);
     }
 
     removeConversation(state, target, group) {

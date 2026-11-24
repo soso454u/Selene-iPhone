@@ -1,4 +1,5 @@
 const { PLAYER, active, before, clip, digest, makeEvent, socialAliases, socialNickname, threadKey, unique, storyDisclosure } = require('./domain.cjs');
+const { contactDeleted, characterConversation } = require('./conversations.cjs');
 
 const PHONE_SECTIONS = { messages: ['聊天记录', 'messages'], notes: ['备忘录', 'edit'], history: ['浏览记录', 'search'], cart: ['购物车', 'cart'] };
 const PHONE_CONTENT_PROTOCOL = `本轮只准备指定角色手机里的私人生活记录，供玩家以作者视角查看，不实际发送消息，不推进正文或 RP 时间。
@@ -112,15 +113,15 @@ function disclosureEvents(session, owner, entries, stamp = Date.now()) {
 
 class CharacterPhone {
     constructor(phone) { this.phone = phone; this.pending = new Set(); this.reset(); }
-    reset() { this.owner = ''; this.app = 'home'; this.thread = ''; this.scope = ''; }
+    reset() { this.owner = ''; this.app = 'home'; this.thread = ''; this.scope = ''; this.draft = ''; }
     back() {
-        if (this.thread) this.thread = '';
+        if (this.thread) { this.thread = ''; this.draft = ''; }
         else if (this.app !== 'home') this.app = 'home';
         else { this.phone.navigate('home'); return; }
         this.phone.render(this.phone.state);
     }
     get title() { return this.thread ? this.chatName || '聊天记录' : this.app === 'home' ? '角色手机' : PHONE_SECTIONS[this.app]?.[0] || '角色手机'; }
-    home() { this.app = 'home'; this.thread = ''; this.phone.render(this.phone.state); }
+    home() { this.app = 'home'; this.thread = ''; this.draft = ''; this.phone.render(this.phone.state); }
     render(state) {
         const p = this.phone, el = p.el.bind(p);
         if (this.scope !== state.scope) { this.reset(); this.scope = state.scope; }
@@ -134,7 +135,7 @@ class CharacterPhone {
         const staged = records.filter(row => row.kind === 'phoneReveal' && row.speakerId === owner.id && active(row, state.trail) && row.sync !== false && !state.trail.byEvent.has(row.id));
         const choose = p.select(people.map(person => [person.id, `${person.name}的手机`]), owner.id);
         choose.setAttribute('aria-label', '选择要查看的角色手机');
-        choose.onchange = () => { this.owner = choose.value; this.app = 'home'; this.thread = ''; p.render(p.state); };
+        choose.onchange = () => { this.owner = choose.value; this.app = 'home'; this.thread = ''; this.draft = ''; p.render(p.state); };
         const identity = el('div', 'character-phone-owner', p.avatar(owner), el('div', 'list-info', choose, el('small', '', 'PRIVATE PHONE · 角色视角')));
         const generate = p.button('', () => this.editor(owner, this.app === 'home' ? 'all' : this.app), 'character-phone-generate', '生成手机内容');
         const generating = this.pending.has(`${state.scope}:${owner.id}`);
@@ -142,7 +143,7 @@ class CharacterPhone {
         const sync = p.button('', () => this.syncEditor(state, owner), 'character-phone-sync', '同步剧情');
         sync.append(p.icon('sync'), el('span', '', '同步剧情'));
         const top = el('div', 'character-phone-top', identity, el('div', 'character-phone-tools', generate, sync));
-        const changeApp = app => { this.app = app; this.thread = ''; p.render(p.state); };
+        const changeApp = app => { this.app = app; this.thread = ''; this.draft = ''; p.render(p.state); };
         if (this.app === 'home') {
             const grid = el('div', 'character-phone-grid', ...Object.entries(PHONE_SECTIONS).map(([key, [title, icon]]) => {
                 const count = key === 'messages' ? rows.length : contents[key]?.items.length || 0;
@@ -181,24 +182,72 @@ class CharacterPhone {
             const group = state.groups.find(group => group.id === row.thread);
             return { name: group?.name || names.join('、') || '聊天记录', person: ids.length === 1 ? state.people.find(person => person.id === ids[0]) || { name: names[0] } : { name: group?.name || '群' } };
         };
-        if (this.thread && !groups.has(this.thread)) this.thread = '';
+        const peer = this.thread && state.people.find(person => person.id !== owner.id && person.id !== PLAYER && !contactDeleted(person, state.prefs) && threadKey([owner.id, person.id]) === this.thread);
+        if (this.thread && !groups.has(this.thread) && peer) groups.set(this.thread, []);
+        if (this.thread && !groups.has(this.thread)) { this.thread = ''; this.draft = ''; }
         if (this.thread) {
-            const messages = groups.get(this.thread); this.chatName = info(messages).name;
+            const messages = groups.get(this.thread); this.chatName = messages.length ? info(messages).name : peer.name;
             const bubbles = el('div', 'character-phone-bubbles', ...[...messages].reverse().map(row => {
                 const parts = (row.payload?.components || []).map((part, index) => p.messageComponent(part, { sourceId: row.id, index, ownerId: row.speakerId, readOnly: true }));
                 const caption = parts.length ? row.payload.caption : row.text;
                 return el('div', `character-message ${row.speakerId === owner.id ? 'own' : ''}`, el('small', 'character-message-meta', `${row.speaker}${row.rpTime ? ` · ${row.rpTime}` : ''}${row.generatedPhone ? ' · 模拟记录' : ''}`),
                     el('div', 'character-message-bubble', row.quote ? el('blockquote', '', row.quote) : null, caption ? el('p', '', caption) : null, ...parts));
             }));
-            return el('div', 'character-phone-conversation', el('div', 'character-chat-heading', el('strong', '', this.chatName), el('small', '', `${owner.name}的聊天记录`)), bubbles, el('p', 'character-phone-footnote', '查看不发送消息 · 可同步当前会话到剧情'));
+            if (!messages.length) bubbles.append(el('p', 'empty', `开始${owner.name}与${peer.name}的聊天。`));
+            return el('div', 'character-phone-conversation', el('div', 'character-chat-heading', el('strong', '', this.chatName), el('small', '', `${owner.name}的聊天记录`)), bubbles,
+                peer && !contactDeleted(owner, state.prefs) ? this.composer(state, owner, peer)
+                    : messages[0]?.participants.length === 2 && !messages[0].participants.includes(PLAYER) && !state.people.some(person => person.id === messages[0].participants.find(id => id !== owner.id))
+                        ? p.button(`添加${this.chatName}为联系人并发消息`, () => p.contactEditor(owner.id, { name: this.chatName }), 'outline')
+                        : el('p', 'character-phone-footnote', '可在「同步剧情」中选择当前会话'));
         }
         const list = el('div', 'list character-phone-inbox', ...[...groups].map(([id, messages]) => {
             const { name, person } = info(messages), latest = messages[0];
-            const button = p.button('', () => { this.thread = id; this.chatName = name; p.render(p.state); }, 'list-row');
+            const button = p.button('', () => { this.thread = id; this.chatName = name; this.draft = ''; p.render(p.state); }, 'list-row');
             button.append(p.avatar(person), el('span', 'list-info', el('strong', '', name), el('small', '', `${latest.speaker}：${latest.text}`)), p.icon('right')); return button;
         }));
-        if (!groups.size) list.append(el('div', 'character-phone-empty', p.icon('messages'), el('h3', '', '还没有聊天记录'), el('p', '', '已有正文消息会自动收录，也可点右上角生成角色与 NPC 的聊天。')));
-        return list;
+        if (!groups.size) list.append(el('div', 'character-phone-empty', p.icon('messages'), el('h3', '', '还没有聊天记录'), el('p', '', '点「发消息」选择联系人，或先添加一位联系人。')));
+        return el('div', 'character-phone-inbox-wrap', el('div', 'character-chat-actions', p.button('发消息', () => this.chatPicker(state, owner), 'outline'), p.button('添加联系人', () => p.contactEditor(owner.id), 'outline')), list);
+    }
+    openChat(owner, peer) {
+        const p = this.phone, state = p.state;
+        if (!state) return;
+        let target;
+        try { target = characterConversation(state.people, state.prefs, owner, peer); }
+        catch (error) { p.notice(error.message, true); return; }
+        this.scope = state.scope; this.owner = owner; this.app = 'messages'; this.thread = target.thread.id; this.chatName = target.peer.name; this.draft = '';
+        p.navigate('characterPhone');
+    }
+    chatPicker(state, fixedOwner) {
+        const p = this.phone, people = state.people.filter(person => person.id !== PLAYER && !contactDeleted(person, state.prefs));
+        const owner = p.select(people.map(person => [person.id, person.name]), fixedOwner?.id || this.owner || people.find(person => person.current)?.id || people[0]?.id);
+        owner.setAttribute('aria-label', '发送消息的角色'); owner.disabled = !!fixedOwner;
+        const peer = p.select([], ''); peer.setAttribute('aria-label', '角色聊天联系人');
+        const start = p.button('开始聊天', () => { if (p.state?.scope === state.scope) this.openChat(owner.value, peer.value); }, 'primary');
+        const update = () => {
+            const previous = peer.value;
+            peer.replaceChildren(...people.filter(person => person.id !== owner.value).map(person => { const option = p.el('option', '', person.name); option.value = person.id; return option; }));
+            if ([...peer.options].some(option => option.value === previous)) peer.value = previous;
+            start.disabled = !owner.value || !peer.value;
+        };
+        owner.onchange = update; update();
+        p.dialog('角色与 NPC 聊天', p.el('div', 'form', p.el('label', 'field', '手机主人', owner), p.el('label', 'field', '聊天对方', peer),
+            p.small('以所选角色的身份发消息。私聊仅两人知情，玩家不在会话中。'), start,
+            p.button('添加联系人', () => p.contactEditor(owner.value), 'outline')));
+    }
+    composer(state, owner, peer) {
+        const p = this.phone, data = { owner: owner.id, peer: peer.id, scope: state.scope };
+        const input = p.el('textarea', 'character-chat-input'); input.rows = 2; input.maxLength = 2000; input.value = this.draft; input.placeholder = `以${owner.name}发送消息`;
+        input.setAttribute('aria-label', `以${owner.name}发送给${peer.name}`); input.dataset.keep = 'character-composer';
+        input.oninput = () => { this.draft = input.value; send.disabled = !input.value.trim(); };
+        const send = p.button('发送', async () => {
+            if (!input.value.trim() || send.disabled) return;
+            send.disabled = true;
+            if (!await p.action('sendCharacterMessage', { ...data, text: input.value })) send.disabled = !input.value.trim();
+        }, 'primary');
+        send.disabled = !input.value.trim();
+        input.onkeydown = event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); send.click(); } };
+        return p.el('div', 'character-chat-compose', p.small(`发送身份：${owner.name} · 仅${owner.name}、${peer.name}知情`), p.el('div', 'character-chat-input-row', input, send),
+            p.el('div', 'character-chat-actions', p.button(`让${owner.name}主动发消息`, () => p.action('initiateCharacterMessage', data), 'outline'), p.button(`请求${peer.name}回复`, () => p.action('replyCharacterMessage', data), 'outline')));
     }
     choices(selected, counts = null) {
         const p = this.phone;
